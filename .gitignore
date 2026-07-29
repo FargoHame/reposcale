@@ -1,0 +1,6 @@
+.venv/
+runs/
+evals/
+__pycache__/
+*.py[cod]
+PROJECT_NOTES.md
