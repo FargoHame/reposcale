@@ -3,4 +3,5 @@ title: Placeholder task
 repo_path: .
 problem_statement: |
   This placeholder task proves that RepoScale can load a task spec and write a run artifact.
-test_command: null
+test_command: python --version
+test_timeout_seconds: 30

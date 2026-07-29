@@ -4,3 +4,4 @@ evals/
 __pycache__/
 *.py[cod]
 PROJECT_NOTES.md
+tasks/tmp-*.yaml

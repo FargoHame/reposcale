@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from time import perf_counter
 from typing import Annotated
 
 import typer
 import yaml
 
-from reposcale.schemas import EvaluationResult, RunArtifact, TaskSpec, TraceEvent
+from reposcale.schemas import CommandResult, EvaluationResult, RunArtifact, TaskSpec, TraceEvent
 
 app = typer.Typer(help="RepoScale coding-agent evaluation harness.")
 
@@ -66,21 +70,33 @@ def eval(
     run: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Path to a run artifact JSON file.")],
     evals_dir: Annotated[Path, typer.Option(help="Directory where evaluation artifacts are written.")] = Path("evals"),
 ) -> None:
-    """Create an evaluation artifact for a run.
-
-    Test execution is intentionally mocked in the first evaluation slice.
-    """
+    """Create an evaluation artifact for a run."""
     run_artifact = load_run(run)
     evaluated_at = datetime.now(timezone.utc)
     timestamp = evaluated_at.strftime("%Y%m%dT%H%M%SZ")
     eval_id = f"{timestamp}-{run_artifact.run_id}"
+    command_result = run_test_command(run_artifact.task)
+
+    if command_result is None:
+        status = "not_evaluated"
+        notes = "Task has no test_command, so no evaluation command was run."
+    elif command_result.timed_out:
+        status = "failed"
+        notes = "Test command timed out."
+    elif command_result.exit_code == 0:
+        status = "passed"
+        notes = "Test command exited successfully."
+    else:
+        status = "failed"
+        notes = "Test command exited with a non-zero status."
 
     result = EvaluationResult(
         eval_id=eval_id,
         run_id=run_artifact.run_id,
-        status="not_evaluated",
+        status=status,
         evaluated_at=evaluated_at,
-        notes="Created placeholder evaluation artifact; test execution is not implemented yet.",
+        test_command=command_result,
+        notes=notes,
     )
 
     evals_dir.mkdir(parents=True, exist_ok=True)
@@ -107,3 +123,68 @@ def load_run(path: Path) -> RunArtifact:
         raise typer.BadParameter("run artifact JSON must contain an object at the top level")
 
     return RunArtifact.model_validate(raw_run)
+
+
+def run_test_command(task: TaskSpec) -> CommandResult | None:
+    if task.test_command is None:
+        return None
+
+    cwd = task.repo_path.resolve()
+    if not cwd.exists() or not cwd.is_dir():
+        raise typer.BadParameter(f"task repo_path must be an existing directory: {task.repo_path}")
+
+    started_at = datetime.now(timezone.utc)
+    started_timer = perf_counter()
+    process = subprocess.Popen(
+        task.test_command,
+        cwd=cwd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+        start_new_session=os.name != "nt",
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=task.test_timeout_seconds)
+    except subprocess.TimeoutExpired:
+        stop_process_tree(process)
+        stdout, stderr = process.communicate()
+        completed_at = datetime.now(timezone.utc)
+        duration_seconds = perf_counter() - started_timer
+        return CommandResult(
+            command=task.test_command,
+            cwd=cwd,
+            exit_code=None,
+            timed_out=True,
+            started_at=started_at,
+            completed_at=completed_at,
+            duration_seconds=duration_seconds,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    else:
+        completed_at = datetime.now(timezone.utc)
+        duration_seconds = perf_counter() - started_timer
+        return CommandResult(
+            command=task.test_command,
+            cwd=cwd,
+            exit_code=process.returncode,
+            started_at=started_at,
+            completed_at=completed_at,
+            duration_seconds=duration_seconds,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+
+def stop_process_tree(process: subprocess.Popen[str]) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            capture_output=True,
+            text=True,
+        )
+        return
+
+    os.killpg(process.pid, signal.SIGTERM)

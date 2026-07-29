@@ -13,6 +13,7 @@ class TaskSpec(BaseModel):
     repo_path: Path
     problem_statement: str = Field(min_length=1)
     test_command: str | None = None
+    test_timeout_seconds: float = Field(default=30, gt=0)
 
 
 class ModelConfig(BaseModel):
@@ -39,11 +40,24 @@ class RunArtifact(BaseModel):
     trace: list[TraceEvent] = Field(default_factory=list)
 
 
+class CommandResult(BaseModel):
+    command: str
+    cwd: Path
+    exit_code: int | None
+    timed_out: bool = False
+    started_at: datetime
+    completed_at: datetime
+    duration_seconds: float
+    stdout: str
+    stderr: str
+
+
 class EvaluationResult(BaseModel):
     eval_id: str
     run_id: str
     status: Literal["passed", "failed", "not_evaluated"]
     evaluated_at: datetime
+    test_command: CommandResult | None = None
     patch_applies: bool | None = None
     tests_passed: int | None = None
     tests_failed: int | None = None
