@@ -55,6 +55,8 @@ class CommandResult(BaseModel):
 class EvaluationResult(BaseModel):
     eval_id: str
     run_id: str
+    task_id: str
+    agent: Literal["baseline", "engineered"]
     status: Literal["passed", "failed", "not_evaluated"]
     evaluated_at: datetime
     test_command: CommandResult | None = None
@@ -62,3 +64,23 @@ class EvaluationResult(BaseModel):
     tests_passed: int | None = None
     tests_failed: int | None = None
     notes: str | None = None
+
+
+class EvaluationSummary(BaseModel):
+    eval_id: str
+    run_id: str
+    task_id: str
+    agent: Literal["baseline", "engineered"]
+    status: Literal["passed", "failed", "not_evaluated"]
+    duration_seconds: float | None = None
+    exit_code: int | None = None
+    timed_out: bool | None = None
+
+
+class ComparisonReport(BaseModel):
+    report_id: str
+    baseline: EvaluationSummary
+    candidate: EvaluationSummary
+    winner: Literal["baseline", "candidate", "tie", "none"]
+    compared_at: datetime
+    notes: list[str] = Field(default_factory=list)

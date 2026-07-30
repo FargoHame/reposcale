@@ -1,7 +1,12 @@
 .venv/
+**/.venv/
 runs/
 evals/
+reports/
 __pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
 *.py[cod]
 PROJECT_NOTES.md
 tasks/tmp-*.yaml

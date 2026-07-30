@@ -12,7 +12,15 @@ from typing import Annotated
 import typer
 import yaml
 
-from reposcale.schemas import CommandResult, EvaluationResult, RunArtifact, TaskSpec, TraceEvent
+from reposcale.schemas import (
+    CommandResult,
+    ComparisonReport,
+    EvaluationResult,
+    EvaluationSummary,
+    RunArtifact,
+    TaskSpec,
+    TraceEvent,
+)
 
 app = typer.Typer(help="RepoScale coding-agent evaluation harness.")
 
@@ -93,6 +101,8 @@ def eval(
     result = EvaluationResult(
         eval_id=eval_id,
         run_id=run_artifact.run_id,
+        task_id=run_artifact.task.task_id,
+        agent=run_artifact.agent,
         status=status,
         evaluated_at=evaluated_at,
         test_command=command_result,
@@ -103,6 +113,40 @@ def eval(
     output_path = evals_dir / f"{eval_id}.json"
     output_path.write_text(json.dumps(result.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
     typer.echo(f"Wrote evaluation artifact: {output_path}")
+
+
+@app.command()
+def compare(
+    baseline: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Baseline eval artifact JSON.")],
+    candidate: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Candidate eval artifact JSON.")],
+    reports_dir: Annotated[Path, typer.Option(help="Directory where comparison reports are written.")] = Path(
+        "reports"
+    ),
+) -> None:
+    """Compare two evaluation artifacts."""
+    baseline_eval = load_evaluation(baseline)
+    candidate_eval = load_evaluation(candidate)
+    if baseline_eval.task_id != candidate_eval.task_id:
+        raise typer.BadParameter("baseline and candidate evals must have the same task_id")
+
+    compared_at = datetime.now(timezone.utc)
+    timestamp = compared_at.strftime("%Y%m%dT%H%M%SZ")
+    report_id = f"{timestamp}-{baseline_eval.run_id}-vs-{candidate_eval.run_id}"
+    winner, notes = choose_winner(baseline_eval, candidate_eval)
+
+    report = ComparisonReport(
+        report_id=report_id,
+        baseline=summarize_evaluation(baseline_eval),
+        candidate=summarize_evaluation(candidate_eval),
+        winner=winner,
+        compared_at=compared_at,
+        notes=notes,
+    )
+
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    output_path = reports_dir / f"{report_id}.json"
+    output_path.write_text(json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
+    typer.echo(f"Wrote comparison report: {output_path}")
 
 
 def load_task(path: Path) -> TaskSpec:
@@ -123,6 +167,16 @@ def load_run(path: Path) -> RunArtifact:
         raise typer.BadParameter("run artifact JSON must contain an object at the top level")
 
     return RunArtifact.model_validate(raw_run)
+
+
+def load_evaluation(path: Path) -> EvaluationResult:
+    with path.open("r", encoding="utf-8") as file:
+        raw_evaluation = json.load(file)
+
+    if not isinstance(raw_evaluation, dict):
+        raise typer.BadParameter("evaluation artifact JSON must contain an object at the top level")
+
+    return EvaluationResult.model_validate(raw_evaluation)
 
 
 def run_test_command(task: TaskSpec) -> CommandResult | None:
@@ -188,3 +242,42 @@ def stop_process_tree(process: subprocess.Popen[str]) -> None:
         return
 
     os.killpg(process.pid, signal.SIGTERM)
+
+
+def summarize_evaluation(evaluation: EvaluationResult) -> EvaluationSummary:
+    command = evaluation.test_command
+    return EvaluationSummary(
+        eval_id=evaluation.eval_id,
+        run_id=evaluation.run_id,
+        task_id=evaluation.task_id,
+        agent=evaluation.agent,
+        status=evaluation.status,
+        duration_seconds=command.duration_seconds if command else None,
+        exit_code=command.exit_code if command else None,
+        timed_out=command.timed_out if command else None,
+    )
+
+
+def choose_winner(
+    baseline: EvaluationResult,
+    candidate: EvaluationResult,
+) -> tuple[str, list[str]]:
+    baseline_score = evaluation_score(baseline)
+    candidate_score = evaluation_score(candidate)
+
+    if baseline_score > candidate_score:
+        return "baseline", ["Baseline has the better evaluation status."]
+    if candidate_score > baseline_score:
+        return "candidate", ["Candidate has the better evaluation status."]
+    if baseline_score == 0:
+        return "none", ["Neither evaluation passed."]
+    return "tie", ["Both evaluations have the same status."]
+
+
+def evaluation_score(evaluation: EvaluationResult) -> int:
+    scores = {
+        "failed": 0,
+        "not_evaluated": 1,
+        "passed": 2,
+    }
+    return scores[evaluation.status]

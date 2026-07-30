@@ -1,0 +1,7 @@
+task_id: tiny-api-client-pagination
+title: Follow paginated API cursors
+repo_path: benchmarks/tiny_api_client
+problem_statement: |
+  ApiClient.list_items should return every item from a paginated API response. It currently returns only the first page and ignores next_cursor.
+test_command: uv run pytest
+test_timeout_seconds: 15
