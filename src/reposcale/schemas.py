@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +27,23 @@ class TraceEvent(BaseModel):
     event_type: str
     message: str
     timestamp: datetime
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    output_summary: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PatchSnapshot(BaseModel):
+    repo_path: Path
+    is_git_repo: bool
+    base_ref: str | None = None
+    status: str = ""
+    diff: str = ""
+    staged_diff: str = ""
+    untracked_files: list[str] = Field(default_factory=list)
+    changed_files: list[str] = Field(default_factory=list)
+    lines_added: int = 0
+    lines_removed: int = 0
 
 
 class RunArtifact(BaseModel):
@@ -37,6 +54,7 @@ class RunArtifact(BaseModel):
     started_at: datetime
     completed_at: datetime
     model: ModelConfig | None = None
+    patch: PatchSnapshot | None = None
     trace: list[TraceEvent] = Field(default_factory=list)
 
 
