@@ -7,6 +7,7 @@ from typing import Literal
 from reposcale.agents import run_baseline_agent
 from reposcale.artifacts import load_task, write_artifact
 from reposcale.diagnostics import collect_run_diagnostics
+from reposcale.engineered_agents import run_engineered_agent
 from reposcale.git import capture_patch_snapshot
 from reposcale.llm import create_llm_client
 from reposcale.schemas import ModelConfig, RunArtifact, TraceEvent
@@ -37,11 +38,12 @@ def create_run_artifact(
     status: Literal["completed", "failed", "not_implemented"] = "not_implemented"
 
     if execute_agent:
-        if agent != "baseline":
-            raise ValueError("only baseline agent execution is implemented")
         model = model or default_model_config()
-        client = create_llm_client(model)
-        result = run_baseline_agent(task_spec, model, client, max_steps)
+        if agent == "baseline":
+            client = create_llm_client(model)
+            result = run_baseline_agent(task_spec, model, client, max_steps)
+        else:
+            result = run_engineered_agent(task_spec, model, max_steps)
         status = result.status
         trace.extend(result.trace)
     else:
