@@ -1,0 +1,7 @@
+task_id: tiny-cache-invalidation
+title: Metric totals update after value changes
+repo_path: benchmarks/tiny_cache
+problem_statement: |
+  MetricStore.total caches the computed total, but set_value does not invalidate the cache. Updating or adding values should be reflected by later total calls.
+test_command: uv run pytest
+test_timeout_seconds: 15

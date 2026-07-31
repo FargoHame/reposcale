@@ -1,0 +1,7 @@
+task_id: tiny-auth-admin-access
+title: Admins can view private projects
+repo_path: benchmarks/tiny_auth
+problem_statement: |
+  Admin users should be allowed to view private projects even when they are not the project owner. Regular members should still only see private projects they own.
+test_command: uv run pytest
+test_timeout_seconds: 15

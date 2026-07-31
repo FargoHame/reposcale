@@ -1,0 +1,7 @@
+task_id: tiny-config-precedence
+title: Environment config overrides file config
+repo_path: benchmarks/tiny_config
+problem_statement: |
+  load_config should allow environment variables to override file-provided config values. API_URL already overrides correctly, but DEBUG does not.
+test_command: uv run pytest
+test_timeout_seconds: 15
