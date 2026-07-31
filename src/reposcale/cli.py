@@ -8,7 +8,9 @@ import typer
 
 from reposcale.comparison import create_comparison_report
 from reposcale.evaluation import create_evaluation_artifact
+from reposcale.llm import LlmError, OpenRouterError
 from reposcale.runs import AgentName, create_run_artifact
+from reposcale.schemas import ModelConfig
 
 app = typer.Typer(help="RepoScale coding-agent evaluation harness.")
 ReturnT = TypeVar("ReturnT")
@@ -26,12 +28,27 @@ def run(
         "tasks/example.yaml"
     ),
     runs_dir: Annotated[Path, typer.Option(help="Directory where run artifacts are written.")] = Path("runs"),
+    execute_agent: Annotated[bool, typer.Option(help="Actually execute the agent instead of writing a placeholder run.")] = False,
+    provider: Annotated[str, typer.Option(help="Model provider for agent execution.")] = "mistral",
+    model: Annotated[str, typer.Option(help="Model slug for agent execution.")] = "devstral-latest",
+    max_tokens: Annotated[int, typer.Option(help="Maximum output tokens for model calls.")] = 2048,
+    max_steps: Annotated[int, typer.Option(help="Maximum model/tool loop steps.")] = 12,
 ) -> None:
     """Create a run artifact for a task."""
     if agent not in {"baseline", "engineered"}:
         raise typer.BadParameter("agent must be one of: baseline, engineered")
 
-    output_path = as_cli_error(lambda: create_run_artifact(task, cast(AgentName, agent), runs_dir))
+    model_config = ModelConfig(provider=provider, model=model, temperature=0, max_tokens=max_tokens)
+    output_path = as_cli_error(
+        lambda: create_run_artifact(
+            task,
+            cast(AgentName, agent),
+            runs_dir,
+            execute_agent=execute_agent,
+            model=model_config,
+            max_steps=max_steps,
+        )
+    )
     typer.echo(f"Wrote run artifact: {output_path}")
 
 
@@ -61,5 +78,5 @@ def compare(
 def as_cli_error(action: Callable[[], ReturnT]) -> ReturnT:
     try:
         return action()
-    except ValueError as error:
+    except (LlmError, OpenRouterError, ValueError) as error:
         raise typer.BadParameter(str(error)) from error

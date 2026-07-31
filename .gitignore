@@ -1,5 +1,7 @@
 .venv/
 **/.venv/
+.env
+*.env
 runs/
 evals/
 reports/
@@ -10,3 +12,4 @@ __pycache__/
 *.py[cod]
 PROJECT_NOTES.md
 tasks/tmp-*.yaml
+tmp_agent_smoke_repo/

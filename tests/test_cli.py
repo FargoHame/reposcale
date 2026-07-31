@@ -61,6 +61,22 @@ def test_run_rejects_missing_repo_path(tmp_path: Path) -> None:
     assert "task repo_path must be an existing directory" in result.output
 
 
+def test_run_execute_agent_requires_api_key(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    task_path = write_task(tmp_path, test_command=None)
+
+    result = runner.invoke(
+        app,
+        ["run", "--agent", "baseline", "--task", str(task_path), "--execute-agent"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code != 0
+    assert "MISTRAL_API_KEY is not set" in result.output
+
+
 def test_run_captures_git_patch_snapshot(tmp_path: Path) -> None:
     repo_path = tmp_path / "repo"
     repo_path.mkdir()
