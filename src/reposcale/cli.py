@@ -34,6 +34,10 @@ def run(
     model: Annotated[str, typer.Option(help="Model slug for agent execution.")] = "devstral-latest",
     max_tokens: Annotated[int, typer.Option(help="Maximum output tokens for model calls.")] = 2048,
     max_steps: Annotated[int, typer.Option(help="Maximum model/tool loop steps.")] = 12,
+    recursion_limit: Annotated[
+        int | None,
+        typer.Option(help="LangGraph recursion limit for engineered Deep Agents runs."),
+    ] = None,
 ) -> None:
     """Create a run artifact for a task."""
     if agent not in {"baseline", "engineered"}:
@@ -48,6 +52,7 @@ def run(
             execute_agent=execute_agent,
             model=model_config,
             max_steps=max_steps,
+            recursion_limit=recursion_limit,
         )
     )
     typer.echo(f"Wrote run artifact: {output_path}")

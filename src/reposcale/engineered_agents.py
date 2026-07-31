@@ -35,23 +35,35 @@ class EngineeredAgentResult:
     trace: list[TraceEvent]
 
 
-def run_engineered_agent(task: TaskSpec, model: ModelConfig, max_steps: int) -> EngineeredAgentResult:
+def run_engineered_agent(
+    task: TaskSpec,
+    model: ModelConfig,
+    max_steps: int,
+    recursion_limit: int | None = None,
+) -> EngineeredAgentResult:
+    effective_recursion_limit = recursion_limit or max(max_steps * 8, 100)
+    result: Any = None
     try:
         agent = create_agent(task, model)
-        result = agent.invoke(
+        for update in agent.stream(
             {"messages": [{"role": "user", "content": build_engineered_prompt(task)}]},
-            config={"recursion_limit": max(max_steps * 4, 25)},
-        )
+            config={"recursion_limit": effective_recursion_limit},
+            stream_mode="values",
+        ):
+            result = update
     except Exception as error:
+        trace = trace_from_deepagents_result(result)
+        trace.append(
+            TraceEvent(
+                event_type="model_error",
+                message=str(error),
+                timestamp=now(),
+                metadata={"recursion_limit": effective_recursion_limit},
+            )
+        )
         return EngineeredAgentResult(
             status="failed",
-            trace=[
-                TraceEvent(
-                    event_type="model_error",
-                    message=str(error),
-                    timestamp=now(),
-                )
-            ],
+            trace=trace,
         )
 
     trace = trace_from_deepagents_result(result)

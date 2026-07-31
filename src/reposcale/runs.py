@@ -23,6 +23,7 @@ def create_run_artifact(
     execute_agent: bool = False,
     model: ModelConfig | None = None,
     max_steps: int = 12,
+    recursion_limit: int | None = None,
 ) -> Path:
     task_spec = load_task(task_path)
     started_at = datetime.now(timezone.utc)
@@ -43,7 +44,7 @@ def create_run_artifact(
             client = create_llm_client(model)
             result = run_baseline_agent(task_spec, model, client, max_steps)
         else:
-            result = run_engineered_agent(task_spec, model, max_steps)
+            result = run_engineered_agent(task_spec, model, max_steps, recursion_limit=recursion_limit)
         status = result.status
         trace.extend(result.trace)
     else:

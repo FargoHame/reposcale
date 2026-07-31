@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from reposcale.engineered_agents import to_langchain_model_name, trace_from_deepagents_result
+from reposcale.engineered_agents import run_engineered_agent, to_langchain_model_name, trace_from_deepagents_result
 from reposcale.schemas import ModelConfig
 
 
@@ -67,3 +67,35 @@ def test_trace_from_deepagents_result_counts_tool_requests_once() -> None:
     ]
     assert trace[1].tool_name == "read_file"
     assert trace[1].tool_input == {"file_path": "/pyproject.toml"}
+
+
+def test_engineered_agent_records_recursion_limit_on_failure(monkeypatch, tmp_path) -> None:
+    class FakeAgent:
+        def stream(self, *args, **kwargs):
+            yield {"messages": [FakeAIMessage("working")]}
+            raise RuntimeError("recursion failed")
+
+    monkeypatch.setattr("reposcale.engineered_agents.create_agent", lambda task, model: FakeAgent())
+
+    result = run_engineered_agent(make_task(tmp_path), make_model(), max_steps=2, recursion_limit=123)
+
+    assert result.status == "failed"
+    assert result.trace[-1].event_type == "model_error"
+    assert result.trace[-1].metadata["recursion_limit"] == 123
+    assert result.trace[0].event_type == "model_response"
+
+
+def make_task(repo_path):
+    from reposcale.schemas import TaskSpec
+
+    return TaskSpec(
+        task_id="engineered-test",
+        title="Engineered test",
+        repo_path=repo_path,
+        problem_statement="Fix it.",
+        test_command=None,
+    )
+
+
+def make_model() -> ModelConfig:
+    return ModelConfig(provider="mistral", model="devstral-latest", temperature=0)
