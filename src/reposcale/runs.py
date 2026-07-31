@@ -6,6 +6,7 @@ from typing import Literal
 
 from reposcale.agents import run_baseline_agent
 from reposcale.artifacts import load_task, write_artifact
+from reposcale.diagnostics import collect_run_diagnostics
 from reposcale.git import capture_patch_snapshot
 from reposcale.llm import create_llm_client
 from reposcale.schemas import ModelConfig, RunArtifact, TraceEvent
@@ -65,6 +66,7 @@ def create_run_artifact(
         patch=capture_patch_snapshot(task_spec.repo_path),
         trace=trace,
     )
+    artifact.diagnostics = collect_run_diagnostics(artifact)
 
     output_path = runs_dir / f"{run_id}.json"
     write_artifact(output_path, artifact)

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from reposcale.artifacts import load_evaluation, load_run
-from reposcale.schemas import EvaluationResult, RunArtifact, TraceEvent
+from reposcale.diagnostics import collect_run_diagnostics
+from reposcale.schemas import EvaluationResult, RunArtifact, RunDiagnostics, TraceEvent
 
 
 @dataclass(frozen=True)
@@ -65,12 +66,29 @@ def load_evaluations_by_run_id(evals_dir: Path) -> dict[str, EvaluationResult]:
 
 
 def render_summary_table(rows: list[ReportRow]) -> str:
-    headers = ["task", "agent", "run", "eval", "tools", "files", "+", "-", "test_s"]
+    headers = [
+        "task",
+        "agent",
+        "run",
+        "eval",
+        "model",
+        "tools",
+        "invalid",
+        "tool_err",
+        "repeat",
+        "reads",
+        "cmds",
+        "files",
+        "+",
+        "-",
+        "run_s",
+        "test_s",
+    ]
     values = [headers]
     for row in rows:
         run = row.run
         evaluation = row.evaluation
-        patch = run.patch
+        diagnostics = get_diagnostics(run)
         test_command = evaluation.test_command if evaluation else None
         values.append(
             [
@@ -78,10 +96,17 @@ def render_summary_table(rows: list[ReportRow]) -> str:
                 run.agent,
                 run.status,
                 evaluation.status if evaluation else "missing",
-                str(count_tool_calls(run.trace)),
-                str(len(patch.changed_files) if patch else 0),
-                str(patch.lines_added if patch else 0),
-                str(patch.lines_removed if patch else 0),
+                str(diagnostics.model_calls),
+                str(diagnostics.tool_calls),
+                str(diagnostics.invalid_responses),
+                str(diagnostics.tool_errors),
+                str(diagnostics.repeated_tool_calls),
+                str(diagnostics.files_read),
+                str(diagnostics.commands_run),
+                str(diagnostics.changed_files),
+                str(diagnostics.lines_added),
+                str(diagnostics.lines_removed),
+                f"{diagnostics.run_duration_seconds:.2f}",
                 f"{test_command.duration_seconds:.2f}" if test_command else "-",
             ]
         )
@@ -100,11 +125,15 @@ def render_row_details(row: ReportRow) -> str:
     run = row.run
     evaluation = row.evaluation
     patch = run.patch
+    diagnostics = get_diagnostics(run)
     parts = [
         f"Task: {run.task.task_id}",
         f"Agent: {run.agent}",
         f"Run: {run.status}",
         f"Eval: {evaluation.status if evaluation else 'missing'}",
+        "",
+        "Diagnostics:",
+        render_diagnostics(diagnostics),
         "",
         "Tool calls:",
         render_tool_calls(run.trace),
@@ -124,6 +153,27 @@ def render_row_details(row: ReportRow) -> str:
 
 def count_tool_calls(trace: list[TraceEvent]) -> int:
     return sum(1 for event in trace if event.event_type == "tool_call")
+
+
+def get_diagnostics(run: RunArtifact) -> RunDiagnostics:
+    return run.diagnostics or collect_run_diagnostics(run)
+
+
+def render_diagnostics(diagnostics: RunDiagnostics) -> str:
+    values = {
+        "model_calls": diagnostics.model_calls,
+        "tool_calls": diagnostics.tool_calls,
+        "invalid_responses": diagnostics.invalid_responses,
+        "tool_errors": diagnostics.tool_errors,
+        "model_errors": diagnostics.model_errors,
+        "repeated_tool_calls": diagnostics.repeated_tool_calls,
+        "files_read": diagnostics.files_read,
+        "commands_run": diagnostics.commands_run,
+        "max_steps_reached": diagnostics.max_steps_reached,
+        "run_duration_seconds": f"{diagnostics.run_duration_seconds:.2f}",
+        "artifact_saved": diagnostics.artifact_saved,
+    }
+    return "\n".join(f"  {key}: {value}" for key, value in values.items())
 
 
 def render_tool_calls(trace: list[TraceEvent]) -> str:

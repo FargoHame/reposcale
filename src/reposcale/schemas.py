@@ -46,6 +46,23 @@ class PatchSnapshot(BaseModel):
     lines_removed: int = 0
 
 
+class RunDiagnostics(BaseModel):
+    model_calls: int = 0
+    tool_calls: int = 0
+    tool_errors: int = 0
+    model_errors: int = 0
+    invalid_responses: int = 0
+    repeated_tool_calls: int = 0
+    files_read: int = 0
+    commands_run: int = 0
+    max_steps_reached: bool = False
+    changed_files: int = 0
+    lines_added: int = 0
+    lines_removed: int = 0
+    run_duration_seconds: float = 0
+    artifact_saved: bool = True
+
+
 class RunArtifact(BaseModel):
     run_id: str
     task: TaskSpec
@@ -56,6 +73,7 @@ class RunArtifact(BaseModel):
     model: ModelConfig | None = None
     patch: PatchSnapshot | None = None
     trace: list[TraceEvent] = Field(default_factory=list)
+    diagnostics: RunDiagnostics | None = None
 
 
 class CommandResult(BaseModel):
