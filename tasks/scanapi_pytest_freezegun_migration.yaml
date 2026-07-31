@@ -1,0 +1,16 @@
+task_id: scanapi-pytest-freezegun-migration
+title: Replace pytest-freezegun with time-machine in ScanAPI tests
+repo_path: benchmarks/external/scanapi
+problem_statement: |
+  ScanAPI issue #957 asks to replace the deprecated pytest-freezegun test dependency with time-machine.
+
+  Current problem:
+  - pytest-freezegun emits deprecation warnings on recent Python versions because it still imports distutils.version.LooseVersion.
+  - The issue asks to search for freezegun/freeze_time usage, migrate tests to time-machine, and update dependency metadata.
+
+  Make the smallest focused change that removes pytest-freezegun usage from the project and keeps the affected tests passing.
+  The validation script is outside the task repository; do not inspect it. Use the problem statement and repository files to make the migration.
+
+  Reference issue: https://github.com/scanapi/scanapi/issues/957
+test_command: python ../../../scripts/check_scanapi_freezegun_migration.py
+test_timeout_seconds: 15

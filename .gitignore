@@ -13,3 +13,4 @@ __pycache__/
 PROJECT_NOTES.md
 tasks/tmp-*.yaml
 tmp_agent_smoke_repo/
+benchmarks/external/
