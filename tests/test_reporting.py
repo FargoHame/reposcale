@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from reposcale.reporting import render_report
+
+
+def test_render_report_summary_table(tmp_path: Path) -> None:
+    write_run(tmp_path, run_id="run-1", task_id="task-a")
+    write_eval(tmp_path, run_id="run-1", status="passed")
+
+    report = render_report(tmp_path / "runs", tmp_path / "evals")
+
+    assert "task" in report
+    assert "task-a" in report
+    assert "baseline" in report
+    assert "passed" in report
+    assert "read_file" not in report
+
+
+def test_render_report_details_include_tools_diff_and_eval_tail(tmp_path: Path) -> None:
+    write_run(tmp_path, run_id="run-1", task_id="task-a")
+    write_eval(tmp_path, run_id="run-1", status="passed")
+
+    report = render_report(tmp_path / "runs", tmp_path / "evals", details=True)
+
+    assert "Tool calls:" in report
+    assert "1. read_file {'path': 'src/app.py'}" in report
+    assert "Changed files:" in report
+    assert "src/app.py" in report
+    assert "-old" in report
+    assert "+new" in report
+    assert "Eval stdout tail:" in report
+    assert "2 passed" in report
+
+
+def test_render_report_filters_by_task(tmp_path: Path) -> None:
+    write_run(tmp_path, run_id="run-1", task_id="task-a")
+    write_run(tmp_path, run_id="run-2", task_id="task-b")
+    write_eval(tmp_path, run_id="run-1", status="passed")
+    write_eval(tmp_path, run_id="run-2", status="failed")
+
+    report = render_report(tmp_path / "runs", tmp_path / "evals", task_id="task-b")
+
+    assert "task-b" in report
+    assert "task-a" not in report
+
+
+def test_render_report_can_show_latest_run_per_task_agent(tmp_path: Path) -> None:
+    write_run(tmp_path, run_id="older", task_id="task-a", started_at="2026-07-31T00:00:00Z")
+    write_run(tmp_path, run_id="newer", task_id="task-a", started_at="2026-07-31T00:01:00Z")
+
+    report = render_report(tmp_path / "runs", tmp_path / "evals", latest=True)
+
+    assert "task-a" in report
+    assert report.count("task-a") == 1
+
+
+def test_render_report_handles_empty_dirs(tmp_path: Path) -> None:
+    assert render_report(tmp_path / "runs", tmp_path / "evals") == "No matching run artifacts found."
+
+
+def test_render_report_skips_legacy_eval_artifacts(tmp_path: Path) -> None:
+    write_run(tmp_path, run_id="run-1", task_id="task-a")
+    evals_dir = tmp_path / "evals"
+    evals_dir.mkdir(exist_ok=True)
+    (evals_dir / "legacy.json").write_text(json.dumps({"run_id": "run-1"}), encoding="utf-8")
+
+    report = render_report(tmp_path / "runs", evals_dir)
+
+    assert "task-a" in report
+    assert "missing" in report
+
+
+def write_run(tmp_path: Path, run_id: str, task_id: str, started_at: str = "2026-07-31T00:00:00Z") -> None:
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir(exist_ok=True)
+    (runs_dir / f"{run_id}.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "task": {
+                    "task_id": task_id,
+                    "title": "Task",
+                    "repo_path": ".",
+                    "problem_statement": "Fix it.",
+                    "test_command": "uv run pytest",
+                    "test_timeout_seconds": 15,
+                },
+                "agent": "baseline",
+                "status": "completed",
+                "started_at": started_at,
+                "completed_at": "2026-07-31T00:00:01Z",
+                "patch": {
+                    "repo_path": ".",
+                    "is_git_repo": True,
+                    "base_ref": "abc123",
+                    "status": " M src/app.py\n",
+                    "diff": "diff --git a/src/app.py b/src/app.py\n-old\n+new\n",
+                    "changed_files": ["src/app.py"],
+                    "lines_added": 1,
+                    "lines_removed": 1,
+                },
+                "trace": [
+                    {
+                        "event_type": "tool_call",
+                        "message": "Executed tool call.",
+                        "timestamp": "2026-07-31T00:00:00Z",
+                        "tool_name": "read_file",
+                        "tool_input": {"path": "src/app.py"},
+                        "output_summary": "Read src/app.py.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
+    evals_dir = tmp_path / "evals"
+    evals_dir.mkdir(exist_ok=True)
+    (evals_dir / f"eval-{run_id}.json").write_text(
+        json.dumps(
+            {
+                "eval_id": f"eval-{run_id}",
+                "run_id": run_id,
+                "task_id": "task-a",
+                "agent": "baseline",
+                "status": status,
+                "evaluated_at": "2026-07-31T00:00:02Z",
+                "test_command": {
+                    "command": "uv run pytest",
+                    "cwd": ".",
+                    "exit_code": 0 if status == "passed" else 1,
+                    "timed_out": False,
+                    "started_at": "2026-07-31T00:00:02Z",
+                    "completed_at": "2026-07-31T00:00:03Z",
+                    "duration_seconds": 0.5,
+                    "stdout": "line 1\nline 2\n2 passed\n",
+                    "stderr": "",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )

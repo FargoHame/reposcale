@@ -9,6 +9,7 @@ import typer
 from reposcale.comparison import create_comparison_report
 from reposcale.evaluation import create_evaluation_artifact
 from reposcale.llm import LlmError, OpenRouterError
+from reposcale.reporting import render_report
 from reposcale.runs import AgentName, create_run_artifact
 from reposcale.schemas import ModelConfig
 
@@ -73,6 +74,18 @@ def compare(
     """Compare two evaluation artifacts."""
     output_path = as_cli_error(lambda: create_comparison_report(baseline, candidate, reports_dir))
     typer.echo(f"Wrote comparison report: {output_path}")
+
+
+@app.command()
+def report(
+    runs_dir: Annotated[Path, typer.Option(help="Directory containing run artifacts.")] = Path("runs"),
+    evals_dir: Annotated[Path, typer.Option(help="Directory containing eval artifacts.")] = Path("evals"),
+    details: Annotated[bool, typer.Option(help="Show tool calls, changed files, diff, and eval output tail.")] = False,
+    latest: Annotated[bool, typer.Option(help="Only show the newest run per task and agent.")] = False,
+    task: Annotated[str | None, typer.Option(help="Only show one task_id.")] = None,
+) -> None:
+    """Render a human-readable report from run and eval artifacts."""
+    typer.echo(as_cli_error(lambda: render_report(runs_dir, evals_dir, details=details, task_id=task, latest=latest)))
 
 
 def as_cli_error(action: Callable[[], ReturnT]) -> ReturnT:
