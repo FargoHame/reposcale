@@ -55,6 +55,10 @@ class RunDiagnostics(BaseModel):
     repeated_tool_calls: int = 0
     repeated_tool_errors: int = 0
     context_stall_tool_calls: int = 0
+    edit_attempts: int = 0
+    no_op_edits: int = 0
+    repeated_edit_attempts: int = 0
+    validations_after_edit: int = 0
     files_read: int = 0
     commands_run: int = 0
     max_steps_reached: bool = False

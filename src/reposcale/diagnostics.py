@@ -6,6 +6,8 @@ from reposcale.schemas import RunArtifact, RunDiagnostics, TraceEvent
 
 CONTEXT_STALL_THRESHOLD = 8
 CONTEXT_TOOLS = {"read_file", "grep", "glob", "ls"}
+EDIT_TOOLS = {"edit_file", "write_file", "replace_line_range"}
+VALIDATION_TOOLS = {"run_validation", "run_command"}
 PHASE_RESET_TOOLS = {"edit_file", "write_file", "replace_line_range", "run_validation", "run_command"}
 
 
@@ -19,6 +21,10 @@ def collect_run_diagnostics(run: RunArtifact) -> RunDiagnostics:
         repeated_tool_calls=count_repeated_tool_calls(run.trace),
         repeated_tool_errors=count_repeated_tool_errors(run.trace),
         context_stall_tool_calls=count_context_stall_tool_calls(run.trace),
+        edit_attempts=count_edit_attempts(run.trace),
+        no_op_edits=count_no_op_edits(run.trace),
+        repeated_edit_attempts=count_repeated_edit_attempts(run.trace),
+        validations_after_edit=count_validations_after_edit(run.trace),
         files_read=count_tool_name(run.trace, "read_file"),
         commands_run=count_tool_name(run.trace, "run_command"),
         max_steps_reached=any(event.message.startswith("Agent reached max_steps=") for event in run.trace),
@@ -93,6 +99,48 @@ def count_context_stall_tool_calls(trace: list[TraceEvent]) -> int:
         if context_calls_since_reset > CONTEXT_STALL_THRESHOLD:
             stalled_calls += 1
     return stalled_calls
+
+
+def count_edit_attempts(trace: list[TraceEvent]) -> int:
+    return sum(1 for event in trace if event.event_type == "tool_call" and event.tool_name in EDIT_TOOLS)
+
+
+def count_no_op_edits(trace: list[TraceEvent]) -> int:
+    return sum(
+        1
+        for event in trace
+        if event.event_type in {"tool_result", "tool_error"}
+        and event.tool_name in EDIT_TOOLS
+        and (event.output_summary or event.message).startswith("no-op:")
+    )
+
+
+def count_repeated_edit_attempts(trace: list[TraceEvent]) -> int:
+    seen: set[tuple[str, str]] = set()
+    repeated = 0
+    for event in trace:
+        if event.event_type != "tool_call" or event.tool_name not in EDIT_TOOLS:
+            continue
+        key = (event.tool_name or "", stable_json(event.tool_input or {}))
+        if key in seen:
+            repeated += 1
+        seen.add(key)
+    return repeated
+
+
+def count_validations_after_edit(trace: list[TraceEvent]) -> int:
+    edit_since_validation = False
+    validations = 0
+    for event in trace:
+        if event.event_type != "tool_call" or event.tool_name is None:
+            continue
+        if event.tool_name in EDIT_TOOLS:
+            edit_since_validation = True
+            continue
+        if event.tool_name in VALIDATION_TOOLS and edit_since_validation:
+            validations += 1
+            edit_since_validation = False
+    return validations
 
 
 def stable_json(value: object) -> str:

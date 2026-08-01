@@ -82,6 +82,10 @@ def render_summary_table(rows: list[ReportRow]) -> str:
         "repeat",
         "rep_err",
         "ctx_stall",
+        "edits",
+        "noop",
+        "edit_rep",
+        "val_after",
         "reads",
         "cmds",
         "files",
@@ -112,6 +116,10 @@ def render_summary_table(rows: list[ReportRow]) -> str:
                 str(diagnostics.repeated_tool_calls),
                 str(diagnostics.repeated_tool_errors),
                 str(diagnostics.context_stall_tool_calls),
+                str(diagnostics.edit_attempts),
+                str(diagnostics.no_op_edits),
+                str(diagnostics.repeated_edit_attempts),
+                str(diagnostics.validations_after_edit),
                 str(diagnostics.files_read),
                 str(diagnostics.commands_run),
                 str(diagnostics.changed_files),
@@ -177,7 +185,7 @@ def count_tool_calls(trace: list[TraceEvent]) -> int:
 
 
 def get_diagnostics(run: RunArtifact) -> RunDiagnostics:
-    return run.diagnostics or collect_run_diagnostics(run)
+    return collect_run_diagnostics(run)
 
 
 def get_validation_evidence(evaluation: EvaluationResult):
@@ -210,6 +218,10 @@ def render_diagnostics(diagnostics: RunDiagnostics) -> str:
         "repeated_tool_calls": diagnostics.repeated_tool_calls,
         "repeated_tool_errors": diagnostics.repeated_tool_errors,
         "context_stall_tool_calls": diagnostics.context_stall_tool_calls,
+        "edit_attempts": diagnostics.edit_attempts,
+        "no_op_edits": diagnostics.no_op_edits,
+        "repeated_edit_attempts": diagnostics.repeated_edit_attempts,
+        "validations_after_edit": diagnostics.validations_after_edit,
         "files_read": diagnostics.files_read,
         "commands_run": diagnostics.commands_run,
         "max_steps_reached": diagnostics.max_steps_reached,

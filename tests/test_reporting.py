@@ -22,6 +22,10 @@ def test_render_report_summary_table(tmp_path: Path) -> None:
     assert "tool_err" in report
     assert "rep_err" in report
     assert "ctx_stall" in report
+    assert "edits" in report
+    assert "noop" in report
+    assert "edit_rep" in report
+    assert "val_after" in report
     assert "read_file" not in report
 
 
@@ -96,6 +100,10 @@ def test_render_report_calculates_diagnostics_for_legacy_run(tmp_path: Path) -> 
     assert "repeated_tool_calls: 0" in report
     assert "repeated_tool_errors: 0" in report
     assert "context_stall_tool_calls: 0" in report
+    assert "edit_attempts: 0" in report
+    assert "no_op_edits: 0" in report
+    assert "repeated_edit_attempts: 0" in report
+    assert "validations_after_edit: 0" in report
 
 
 def write_run(
@@ -170,6 +178,10 @@ def write_run(
             "repeated_tool_calls": 0,
             "repeated_tool_errors": 0,
             "context_stall_tool_calls": 0,
+            "edit_attempts": 0,
+            "no_op_edits": 0,
+            "repeated_edit_attempts": 0,
+            "validations_after_edit": 0,
             "files_read": 1,
             "commands_run": 0,
             "max_steps_reached": False,
@@ -221,6 +233,7 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
                 "syntax_errors": [],
                 "duplicate_imports": [],
                 "duplicate_decorators": [],
+                "repeated_added_lines": [],
                 "generated_files": [],
             },
             "quality_status": "clean",
