@@ -11,6 +11,7 @@ from reposcale.engineered_prompts import ENGINEERED_SYSTEM_PROMPT, build_enginee
 from reposcale.engineered_trace import has_final_message, now, trace_from_deepagents_result
 from reposcale.llm import load_mistral_api_key
 from reposcale.schemas import ModelConfig, TaskSpec, TraceEvent
+from reposcale.validation_evidence import render_validation_evidence, summarize_validation
 
 
 @dataclass(frozen=True)
@@ -85,9 +86,11 @@ def make_validation_tool(task: TaskSpec):
         if task.test_command is None:
             return "No validation command configured."
         result = run_command(task.test_command, task.repo_path, task.test_timeout_seconds)
+        evidence = summarize_validation(result)
         return (
             f"exit_code: {result.exit_code}\n"
             f"timed_out: {result.timed_out}\n"
+            f"{render_validation_evidence(evidence)}\n"
             f"stdout:\n{result.stdout}\n"
             f"stderr:\n{result.stderr}"
         )

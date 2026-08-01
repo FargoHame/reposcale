@@ -38,6 +38,8 @@ def test_render_report_details_include_tools_diff_and_eval_tail(tmp_path: Path) 
     assert "-old" in report
     assert "+new" in report
     assert "Eval stdout tail:" in report
+    assert "Validation evidence:" in report
+    assert "headline: Test command exited successfully." in report
     assert "2 passed" in report
 
 
@@ -199,11 +201,19 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
                     "timed_out": False,
                     "started_at": "2026-07-31T00:00:02Z",
                     "completed_at": "2026-07-31T00:00:03Z",
-                    "duration_seconds": 0.5,
-                    "stdout": "line 1\nline 2\n2 passed\n",
-                    "stderr": "",
-                },
-            }
-        ),
+                "duration_seconds": 0.5,
+                "stdout": "line 1\nline 2\n2 passed\n",
+                "stderr": "",
+            },
+            "validation_evidence": {
+                "exit_code": 0,
+                "timed_out": False,
+                "headline": "Test command exited successfully.",
+                "error_lines": [],
+                "traceback_locations": [],
+                "pytest_summary": ["2 passed"],
+            },
+        }
+    ),
         encoding="utf-8",
     )

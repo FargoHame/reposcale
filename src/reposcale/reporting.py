@@ -6,6 +6,7 @@ from pathlib import Path
 from reposcale.artifacts import load_evaluation, load_run
 from reposcale.diagnostics import collect_run_diagnostics
 from reposcale.schemas import EvaluationResult, RunArtifact, RunDiagnostics, TraceEvent
+from reposcale.validation_evidence import render_validation_evidence, summarize_validation
 
 
 @dataclass(frozen=True)
@@ -150,7 +151,15 @@ def render_row_details(row: ReportRow) -> str:
     ]
 
     if evaluation and evaluation.test_command:
-        parts.extend(["", "Eval stdout tail:", indent_text(tail(evaluation.test_command.stdout), "  ")])
+        parts.extend(
+            [
+                "",
+                indent_text(render_validation_evidence(get_validation_evidence(evaluation)), "  "),
+                "",
+                "Eval stdout tail:",
+                indent_text(tail(evaluation.test_command.stdout), "  "),
+            ]
+        )
 
     return "\n".join(parts)
 
@@ -161,6 +170,10 @@ def count_tool_calls(trace: list[TraceEvent]) -> int:
 
 def get_diagnostics(run: RunArtifact) -> RunDiagnostics:
     return run.diagnostics or collect_run_diagnostics(run)
+
+
+def get_validation_evidence(evaluation: EvaluationResult):
+    return evaluation.validation_evidence or summarize_validation(evaluation.test_command)
 
 
 def render_diagnostics(diagnostics: RunDiagnostics) -> str:

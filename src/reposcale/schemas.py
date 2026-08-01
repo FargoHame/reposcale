@@ -90,6 +90,15 @@ class CommandResult(BaseModel):
     stderr: str
 
 
+class ValidationEvidence(BaseModel):
+    exit_code: int | None = None
+    timed_out: bool = False
+    headline: str = ""
+    error_lines: list[str] = Field(default_factory=list)
+    traceback_locations: list[str] = Field(default_factory=list)
+    pytest_summary: list[str] = Field(default_factory=list)
+
+
 class EvaluationResult(BaseModel):
     eval_id: str
     run_id: str
@@ -98,6 +107,7 @@ class EvaluationResult(BaseModel):
     status: Literal["passed", "failed", "not_evaluated"]
     evaluated_at: datetime
     test_command: CommandResult | None = None
+    validation_evidence: ValidationEvidence | None = None
     patch_applies: bool | None = None
     tests_passed: int | None = None
     tests_failed: int | None = None

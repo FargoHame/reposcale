@@ -18,6 +18,7 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Read-stall guardrails change behavior but do not solve exact edit failures. | The latest PyYAML engineered run emitted read-stall warnings, then attempted edits, but those edits still failed because the replacement strings did not match. | The next harness improvement should help the agent make reliable edits from the current file region. |
 | Line-range edits improve patch mechanics. | The latest PyYAML engineered run used `replace_line_range` and produced a focused, syntactically clean patch. | The harness can reduce edit-tool friction once the model has line numbers. |
 | Semantic localization is now the bottleneck on PyYAML. | The line-range patch changed `scan_plain_spaces`, but validation still failed at the scanner's token boundary handling. | The next harness improvement should extract better failure evidence from validation and point the agent to the responsible phase. |
+| Validation evidence makes failures easier to audit. | PyYAML still failed after validation summaries, but reports now surface the exact headline: trailing tab still raises `ScannerError` while scanning for the next token. | This gives the agent and evaluator a cleaner signal than raw stdout alone. |
 | Static checkers can overstate success. | The latest ScanAPI engineered run passed the checker, but the diff duplicated imports/decorators and looked structurally broken. | We need stronger evals that run representative tests or inspect patch quality, not only static migration markers. |
 | The harness changes generalize on a fresh local task. | The new tiny serialization benchmark passed with 10 model calls, 9 tool calls, no invalid responses, and a one-file patch. | The line/edit/context improvements are not only PyYAML-specific. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
@@ -38,6 +39,7 @@ These reports can be reproduced locally after running the benchmark setup script
 | `pyyaml-trailing-tab-plain-scalar` | engineered + edit guardrail | failed | failed | 60 | 60 | 0 | 1 | 7 | 0 | 52 | 0 | 438.90 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + edit/read guardrails | failed | failed | 60 | 60 | 0 | 16 | 12 | 4 | 19 | 0 | 314.46 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + line-range helper | failed | failed | 30 | 30 | 0 | 6 | 4 | 0 | 14 | 1 | 79.78 |
+| `pyyaml-trailing-tab-plain-scalar` | engineered + validation evidence | failed | failed | 30 | 30 | 0 | 8 | 2 | 0 | 16 | 1 | 85.75 |
 | `tiny-serialization-score-keys` | engineered + current harness | completed | passed | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 1 | 52.82 |
 
 ## Verify Locally
@@ -66,4 +68,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 18 adds and locks a fresh serialization benchmark. The current harness solved it cleanly, which is positive evidence that the improvements are not only PyYAML-specific. The latest ScanAPI run also passed its checker, but the human-readable diff exposed weak eval coverage, so the next improvement should strengthen evals with representative test execution and patch-quality checks.
+Milestone 20 adds validation-evidence summaries. Eval artifacts and engineered `run_validation` feedback now include a compact headline, error lines, traceback locations, and pytest summary when available. The next improvement should use this evidence for retry guidance and add patch-quality warnings such as Python syntax checks and duplicate import/decorator detection.

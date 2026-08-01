@@ -6,6 +6,7 @@ from pathlib import Path
 from reposcale.artifacts import load_run, write_artifact
 from reposcale.commands import run_command
 from reposcale.schemas import CommandResult, EvaluationResult, TaskSpec
+from reposcale.validation_evidence import summarize_validation
 
 
 def create_evaluation_artifact(run_path: Path, evals_dir: Path) -> Path:
@@ -14,6 +15,7 @@ def create_evaluation_artifact(run_path: Path, evals_dir: Path) -> Path:
     timestamp = evaluated_at.strftime("%Y%m%dT%H%M%SZ")
     eval_id = f"{timestamp}-{run_artifact.run_id}"
     command_result = run_test_command(run_artifact.task)
+    validation_evidence = summarize_validation(command_result)
     status, notes = evaluate_command_result(command_result)
 
     result = EvaluationResult(
@@ -24,6 +26,7 @@ def create_evaluation_artifact(run_path: Path, evals_dir: Path) -> Path:
         status=status,
         evaluated_at=evaluated_at,
         test_command=command_result,
+        validation_evidence=validation_evidence,
         notes=notes,
     )
 

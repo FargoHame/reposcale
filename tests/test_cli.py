@@ -198,7 +198,10 @@ def test_eval_records_not_evaluated_without_test_command(tmp_path: Path) -> None
 
 
 def test_eval_records_failed_command(tmp_path: Path) -> None:
-    task_path = write_task(tmp_path, test_command='python -c "raise SystemExit(7)"')
+    task_path = write_task(
+        tmp_path,
+        test_command='python -c "raise AssertionError(\'bad value\')"',
+    )
     runs_dir = tmp_path / "runs"
     evals_dir = tmp_path / "evals"
 
@@ -216,8 +219,10 @@ def test_eval_records_failed_command(tmp_path: Path) -> None:
     assert eval_result.exit_code == 0
     eval_artifact = json.loads(next(evals_dir.glob("*.json")).read_text(encoding="utf-8"))
     assert eval_artifact["status"] == "failed"
-    assert eval_artifact["test_command"]["exit_code"] == 7
+    assert eval_artifact["test_command"]["exit_code"] == 1
     assert eval_artifact["test_command"]["timed_out"] is False
+    assert eval_artifact["validation_evidence"]["exit_code"] == 1
+    assert "AssertionError" in eval_artifact["validation_evidence"]["headline"]
 
 
 def test_eval_records_timed_out_command(tmp_path: Path) -> None:
