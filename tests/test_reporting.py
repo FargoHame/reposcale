@@ -19,6 +19,7 @@ def test_render_report_summary_table(tmp_path: Path) -> None:
     assert "invalid" in report
     assert "tool_err" in report
     assert "rep_err" in report
+    assert "ctx_stall" in report
     assert "read_file" not in report
 
 
@@ -89,6 +90,7 @@ def test_render_report_calculates_diagnostics_for_legacy_run(tmp_path: Path) -> 
     assert "tool_errors: 1" in report
     assert "repeated_tool_calls: 0" in report
     assert "repeated_tool_errors: 0" in report
+    assert "context_stall_tool_calls: 0" in report
 
 
 def write_run(
@@ -162,6 +164,7 @@ def write_run(
             "invalid_responses": 1,
             "repeated_tool_calls": 0,
             "repeated_tool_errors": 0,
+            "context_stall_tool_calls": 0,
             "files_read": 1,
             "commands_run": 0,
             "max_steps_reached": False,

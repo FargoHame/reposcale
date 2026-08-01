@@ -96,9 +96,42 @@ class GuardedFilesystemBackend:
         from deepagents.backends import FilesystemBackend
 
         class _GuardedFilesystemBackend(FilesystemBackend):
+            CONTEXT_READ_GUARDRAIL_THRESHOLD = 8
+
             def __init__(self, guarded_root_dir, guarded_virtual_mode: bool = True) -> None:
                 super().__init__(root_dir=guarded_root_dir, virtual_mode=guarded_virtual_mode)
                 self._failed_edit_counts: dict[tuple[str, str, bool], int] = {}
+                self._reads_since_write_or_edit = 0
+
+            def read(
+                self,
+                file_path: str,
+                offset: int = 0,
+                limit: int = 2000,
+            ):
+                result = super().read(file_path, offset, limit)
+                self._reads_since_write_or_edit += 1
+                if (
+                    result.error is None
+                    and result.file_data is not None
+                    and result.file_data.get("encoding") == "utf-8"
+                    and self._reads_since_write_or_edit > self.CONTEXT_READ_GUARDRAIL_THRESHOLD
+                ):
+                    result.file_data["content"] = (
+                        f"{result.file_data['content']}\n\n"
+                        "GUARDRAIL: You have read many file regions without making a patch. "
+                        "Stop broad context gathering. Make the smallest likely edit now, "
+                        "or run validation if you believe the repository is already fixed."
+                    )
+                return result
+
+            def write(
+                self,
+                file_path: str,
+                content: str,
+            ):
+                self._reads_since_write_or_edit = 0
+                return super().write(file_path, content)
 
             def edit(
                 self,
@@ -107,6 +140,7 @@ class GuardedFilesystemBackend:
                 new_string: str,
                 replace_all: bool = False,
             ):
+                self._reads_since_write_or_edit = 0
                 result = super().edit(file_path, old_string, new_string, replace_all)
                 if result.error is None:
                     self._failed_edit_counts.pop((file_path, old_string, replace_all), None)

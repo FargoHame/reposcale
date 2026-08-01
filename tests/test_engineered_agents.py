@@ -113,6 +113,34 @@ def test_guarded_filesystem_backend_warns_after_repeated_failed_edit(tmp_path) -
     assert "GUARDRAIL" in second.error
 
 
+def test_guarded_filesystem_backend_warns_after_many_reads_without_edit(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    backend = GuardedFilesystemBackend(root_dir=tmp_path, virtual_mode=True)
+
+    result = None
+    for _ in range(9):
+        result = backend.read("/example.py")
+
+    assert result is not None
+    assert result.file_data is not None
+    assert "GUARDRAIL" in result.file_data["content"]
+
+
+def test_guarded_filesystem_backend_resets_read_guardrail_after_edit(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    backend = GuardedFilesystemBackend(root_dir=tmp_path, virtual_mode=True)
+
+    for _ in range(8):
+        backend.read("/example.py")
+    backend.edit("/example.py", "value = 1", "value = 2")
+    result = backend.read("/example.py")
+
+    assert result.file_data is not None
+    assert "GUARDRAIL" not in result.file_data["content"]
+
+
 def make_task(repo_path):
     from reposcale.schemas import TaskSpec
 

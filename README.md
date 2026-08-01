@@ -15,21 +15,23 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Deep Agents reduces invalid responses. | Engineered tiny cache and PyYAML had 0 invalid responses. | Structured harnesses improve tool-call format. |
 | Deep Agents can still get stuck. | ScanAPI and PyYAML engineered runs repeated failed `edit_file` calls. | We need loop-control guardrails, not just more recursion. |
 | Guardrails expose the next bottleneck. | After adding repeated-edit guardrails, PyYAML no longer repeated failed edits, but over-read `scanner.py` without editing. | Loop control must cover repeated reads and phase transitions too. |
+| Read-stall guardrails change behavior but do not solve exact edit failures. | The latest PyYAML engineered run emitted read-stall warnings, then attempted edits, but those edits still failed because the replacement strings did not match. | The next harness improvement should help the agent make reliable edits from the current file region. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
 ## Latest Experiment Results
 
 These reports can be reproduced locally after running the benchmark setup scripts and agent runs. The JSON artifacts live under `runs/` and `evals/`; they are ignored by Git because they are generated run outputs.
 
-| Task | Agent | Run | Eval | Model calls | Tool calls | Invalid | Tool errors | Repeated calls | Files changed | Run seconds |
-|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `tiny-cache-invalidation` | baseline | completed | passed | 11 | 6 | 3 | 1 | 0 | 5 | 36.59 |
-| `tiny-cache-invalidation` | engineered | completed | passed | 10 | 9 | 0 | 0 | 1 | 1 | 24.65 |
-| `scanapi-pytest-freezegun-migration` | baseline | failed | failed | 20 | 11 | 9 | 0 | 0 | 0 | 239.11 |
-| `scanapi-pytest-freezegun-migration` | engineered | failed | failed | 120 | 120 | 0 | 103 | 99 | 0 | 707.16 |
-| `pyyaml-trailing-tab-plain-scalar` | baseline | failed | failed | 24 | 16 | 4 | 4 | 2 | 1 | 138.10 |
-| `pyyaml-trailing-tab-plain-scalar` | engineered | failed | failed | 90 | 90 | 0 | 59 | 58 | 1 | 344.36 |
-| `pyyaml-trailing-tab-plain-scalar` | engineered + edit guardrail | failed | failed | 60 | 60 | 0 | 1 | 7 | 0 | 438.90 |
+| Task | Agent | Run | Eval | Model calls | Tool calls | Invalid | Tool errors | Repeated calls | Repeated errors | Context stalls | Files changed | Run seconds |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `tiny-cache-invalidation` | baseline | completed | passed | 11 | 6 | 3 | 1 | 0 | 0 | 0 | 5 | 36.59 |
+| `tiny-cache-invalidation` | engineered | completed | passed | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 1 | 24.65 |
+| `scanapi-pytest-freezegun-migration` | baseline | failed | failed | 20 | 11 | 9 | 0 | 0 | 0 | 0 | 0 | 239.11 |
+| `scanapi-pytest-freezegun-migration` | engineered | failed | failed | 120 | 120 | 0 | 103 | 99 | 98 | 5 | 0 | 707.16 |
+| `pyyaml-trailing-tab-plain-scalar` | baseline | failed | failed | 24 | 16 | 4 | 4 | 2 | 0 | 0 | 1 | 138.10 |
+| `pyyaml-trailing-tab-plain-scalar` | engineered | failed | failed | 90 | 90 | 0 | 59 | 58 | 57 | 15 | 1 | 344.36 |
+| `pyyaml-trailing-tab-plain-scalar` | engineered + edit guardrail | failed | failed | 60 | 60 | 0 | 1 | 7 | 0 | 52 | 0 | 438.90 |
+| `pyyaml-trailing-tab-plain-scalar` | engineered + edit/read guardrails | failed | failed | 60 | 60 | 0 | 16 | 12 | 4 | 19 | 0 | 314.46 |
 
 ## Verify Locally
 
@@ -56,4 +58,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 13 adds loop-control guardrails. The harness detects repeated failed edit actions and changes the tool error feedback so the agent is told to stop repeating the same replacement and switch strategy. The next guardrail should detect repeated context reads without a patch attempt and force an edit-or-validate phase transition.
+Milestone 14 adds context-stall detection. The report now surfaces `ctx_stall`, and the engineered filesystem backend injects an advisory warning after too many file reads without a write or edit. The next improvement should make edits more reliable by giving the agent a structured patch helper or line-range replacement tool instead of relying only on exact string replacement.
