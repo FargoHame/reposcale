@@ -26,6 +26,7 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Compact context search helps retrieval, but not editing discipline by itself. | `search_context` gave agents numbered snippets around matches, and tiny API clean-passed, but PyYAML and ScanAPI still failed after bad edit loops. | Large-repo context engineering needs retrieval, edit planning, and loop control together. |
 | Patch quality now catches repeated generated code. | The latest PyYAML engineered run is marked `warning` because the diff added `length += 1` repeatedly. | Evaluations should expose pathological patches even when syntax is valid. |
 | Edit-attempt metrics expose failed workflows directly. | The latest PyYAML engineered run made 29 edits with 22 repeated edit attempts; the latest ScanAPI engineered run made 25 edits but only validated twice after editing. | We can now distinguish bad search, bad editing, and bad validation recovery instead of treating every failure as one blob. |
+| Blocking repeated exact edits reduces loops but does not guarantee good patches. | The latest ScanAPI rerun dropped to 24 model calls and 23 tool calls, but still produced a syntax-broken patch that the static checker accepted. | The next step is stronger pre-validation patch review, not just loop prevention. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
 ## Latest Experiment Results
@@ -39,6 +40,7 @@ These reports can be reproduced locally after running the benchmark setup script
 | `scanapi-pytest-freezegun-migration` | baseline | failed | failed | 20 | 11 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 239.11 |
 | `scanapi-pytest-freezegun-migration` | engineered + current harness | completed | passed | 23 | 22 | 0 | 1 | 1 | 1 | 7 | 0 | 0 | 2 | 3 | 47.49 |
 | `scanapi-pytest-freezegun-migration` | engineered + search context | failed | failed | 110 | 110 | 0 | 73 | 69 | 56 | 25 | 0 | 0 | 2 | 4 | 206.69 |
+| `scanapi-pytest-freezegun-migration` | engineered + repeat-edit block | completed | passed | 24 | 23 | 0 | 0 | 2 | 2 | 8 | 0 | 0 | 2 | 3 | 80.47 |
 | `pyyaml-trailing-tab-plain-scalar` | baseline | failed | failed | 24 | 16 | 4 | 4 | 2 | 0 | 1 | 0 | 0 | 1 | 1 | 138.10 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + validation evidence | failed | failed | 30 | 30 | 0 | 8 | 2 | 16 | 2 | 0 | 0 | 1 | 1 | 85.75 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + search context/no-op feedback | failed | failed | 120 | 120 | 0 | 5 | 77 | 12 | 29 | 0 | 22 | 29 | 1 | 227.20 |
@@ -72,4 +74,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 24 adds edit-attempt diagnostics. Reports now separate edit attempts, no-op edits, repeated edits, and validations after edits, which makes failed workflows easier to compare without rereading every trace by hand.
+Milestone 25 adds deterministic repeat-edit blocking for `replace_line_range`. The latest ScanAPI rerun shows the loop-control improvement reduced tool churn, but patch quality still caught a risky syntax-broken patch.

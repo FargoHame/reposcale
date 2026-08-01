@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from reposcale.engineered_agents import make_search_context_tool, run_engineered_agent, to_langchain_model_name
 from reposcale.engineered_backend import GuardedFilesystemBackend
-from reposcale.engineered_editing import replace_file_line_range
+from reposcale.engineered_editing import make_replace_line_range_tool, replace_file_line_range
 from reposcale.engineered_trace import trace_from_deepagents_result
 from reposcale.schemas import ModelConfig
 
@@ -215,6 +215,19 @@ def test_replace_file_line_range_reports_no_op(tmp_path) -> None:
 
     assert result.startswith("no-op:")
     assert path.read_text(encoding="utf-8") == "value = 1\n"
+
+
+def test_replace_line_range_tool_blocks_repeated_exact_attempt(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    replace_line_range = make_replace_line_range_tool(make_task(tmp_path))
+
+    first = replace_line_range("example.py", 1, 1, "value = 2")
+    second = replace_line_range("example.py", 1, 1, "value = 2")
+
+    assert first == "replaced lines 1-1 in example.py"
+    assert second.startswith("GUARDRAIL: repeated replace_line_range attempt blocked")
+    assert path.read_text(encoding="utf-8") == "value = 2\n"
 
 
 def test_replace_file_line_range_rejects_invalid_ranges(tmp_path) -> None:

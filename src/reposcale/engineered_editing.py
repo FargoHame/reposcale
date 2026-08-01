@@ -6,6 +6,8 @@ from reposcale.schemas import TaskSpec
 
 
 def make_replace_line_range_tool(task: TaskSpec):
+    attempted_replacements: set[tuple[str, int, int, str, bool]] = set()
+
     def replace_line_range(
         file_path: str,
         start_line: int,
@@ -14,6 +16,14 @@ def make_replace_line_range_tool(task: TaskSpec):
         preserve_indentation: bool = True,
     ) -> str:
         """Replace a 1-based inclusive line range in a repository file."""
+        key = (file_path, start_line, end_line, new_text, preserve_indentation)
+        if key in attempted_replacements:
+            return (
+                "GUARDRAIL: repeated replace_line_range attempt blocked. "
+                "Do not retry the same edit. Read the current target lines, inspect validation output, "
+                "then choose a different replacement or stop with the blocker."
+            )
+        attempted_replacements.add(key)
         return replace_file_line_range(
             task.repo_path,
             file_path,
