@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import ast
+import shutil
+import subprocess
+import tempfile
+import tomllib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from typing import Literal
@@ -21,13 +27,16 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
     if run.patch is None:
         return None
 
-    syntax_errors = find_python_syntax_errors(run.task.repo_path, run.patch)
+    with patched_analysis_root(run.task.repo_path, run.patch) as analysis_root:
+        syntax_errors = find_python_syntax_errors(analysis_root, run.patch)
+        toml_errors = find_toml_syntax_errors(analysis_root, run.patch)
     duplicate_imports = find_duplicate_added_lines(run.patch.diff, ("import ", "from "))
     duplicate_decorators = find_duplicate_added_lines(run.patch.diff, ("@",))
     repeated_added_lines = find_repeated_added_lines(run.patch.diff)
     generated_files = find_generated_files(run.patch)
     warnings = build_warnings(
         syntax_errors,
+        toml_errors,
         duplicate_imports,
         duplicate_decorators,
         repeated_added_lines,
@@ -37,11 +46,35 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
     return PatchQualityReport(
         warnings=warnings,
         syntax_errors=syntax_errors,
+        toml_errors=toml_errors,
         duplicate_imports=duplicate_imports,
         duplicate_decorators=duplicate_decorators,
         repeated_added_lines=repeated_added_lines,
         generated_files=generated_files,
     )
+
+
+@contextmanager
+def patched_analysis_root(repo_path: Path, patch: PatchSnapshot) -> Iterator[Path]:
+    if not patch.diff.strip():
+        yield repo_path
+        return
+
+    with tempfile.TemporaryDirectory(prefix="reposcale_patch_quality_") as temp_dir:
+        temp_repo = Path(temp_dir) / "repo"
+        shutil.copytree(
+            repo_path,
+            temp_repo,
+            ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".pytest_cache"),
+        )
+        result = subprocess.run(
+            ["git", "apply"],
+            cwd=temp_repo,
+            input=patch.diff,
+            capture_output=True,
+            text=True,
+        )
+        yield temp_repo if result.returncode == 0 else repo_path
 
 
 def find_python_syntax_errors(repo_path: Path, patch: PatchSnapshot) -> list[str]:
@@ -61,6 +94,26 @@ def find_python_syntax_errors(repo_path: Path, patch: PatchSnapshot) -> list[str
             ast.parse(target.read_text(encoding="utf-8"), filename=changed_file)
         except SyntaxError as error:
             errors.append(f"{changed_file}:{error.lineno or 0}: {error.msg}")
+    return errors
+
+
+def find_toml_syntax_errors(repo_path: Path, patch: PatchSnapshot) -> list[str]:
+    errors: list[str] = []
+    for changed_file in patch.changed_files:
+        if not changed_file.endswith(".toml"):
+            continue
+        target = (repo_path / changed_file).resolve()
+        try:
+            target.relative_to(repo_path.resolve())
+        except ValueError:
+            errors.append(f"{changed_file}: path escapes repo")
+            continue
+        if not target.exists():
+            continue
+        try:
+            tomllib.loads(target.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as error:
+            errors.append(f"{changed_file}: {error}")
     return errors
 
 
@@ -134,6 +187,7 @@ def find_generated_files(patch: PatchSnapshot) -> list[str]:
 
 def build_warnings(
     syntax_errors: list[str],
+    toml_errors: list[str],
     duplicate_imports: list[str],
     duplicate_decorators: list[str],
     repeated_added_lines: list[str],
@@ -141,6 +195,7 @@ def build_warnings(
 ) -> list[str]:
     warnings: list[str] = []
     warnings.extend(f"python syntax error: {error}" for error in syntax_errors)
+    warnings.extend(f"toml syntax error: {error}" for error in toml_errors)
     warnings.extend(f"possible duplicate import: {line}" for line in duplicate_imports)
     warnings.extend(f"possible duplicate decorator: {line}" for line in duplicate_decorators)
     warnings.extend(f"repeated added line: {line}" for line in repeated_added_lines)
@@ -159,7 +214,7 @@ def render_patch_quality(report: PatchQualityReport | None) -> str:
 def quality_status(report: PatchQualityReport | None) -> Literal["clean", "warning", "risky"]:
     if report is None or not report.warnings:
         return "clean"
-    if report.syntax_errors:
+    if report.syntax_errors or report.toml_errors:
         return "risky"
     return "warning"
 

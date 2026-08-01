@@ -106,6 +106,7 @@ class ValidationEvidence(BaseModel):
 class PatchQualityReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     syntax_errors: list[str] = Field(default_factory=list)
+    toml_errors: list[str] = Field(default_factory=list)
     duplicate_imports: list[str] = Field(default_factory=list)
     duplicate_decorators: list[str] = Field(default_factory=list)
     repeated_added_lines: list[str] = Field(default_factory=list)

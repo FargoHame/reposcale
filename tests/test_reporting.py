@@ -231,6 +231,7 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
             "patch_quality": {
                 "warnings": [],
                 "syntax_errors": [],
+                "toml_errors": [],
                 "duplicate_imports": [],
                 "duplicate_decorators": [],
                 "repeated_added_lines": [],

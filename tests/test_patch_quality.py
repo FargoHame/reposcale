@@ -59,6 +59,63 @@ def test_analyze_patch_quality_flags_syntax_errors_and_generated_files(tmp_path:
     assert quality_status(report) == "risky"
 
 
+def test_analyze_patch_quality_flags_toml_syntax_errors(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text("[project]\ndependencies = [\ntime-machine>=2.14.0,<3.0.0\n]\n", encoding="utf-8")
+    run = make_run(
+        repo,
+        PatchSnapshot(
+            repo_path=repo,
+            is_git_repo=True,
+            changed_files=["pyproject.toml"],
+        ),
+    )
+
+    report = analyze_patch_quality(run)
+
+    assert report is not None
+    assert len(report.toml_errors) == 1
+    assert report.toml_errors[0].startswith("pyproject.toml:")
+    assert "toml syntax error: pyproject.toml:" in report.warnings[0]
+    assert quality_status(report) == "risky"
+
+
+def test_analyze_patch_quality_uses_stored_diff_when_checkout_is_restored(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text(
+        '[project]\ndependencies = [\n    "pytest-freezegun==0.4.2",\n]\n',
+        encoding="utf-8",
+    )
+    run = make_run(
+        repo,
+        PatchSnapshot(
+            repo_path=repo,
+            is_git_repo=True,
+            changed_files=["pyproject.toml"],
+            diff=(
+                "diff --git a/pyproject.toml b/pyproject.toml\n"
+                "--- a/pyproject.toml\n"
+                "+++ b/pyproject.toml\n"
+                "@@ -1,4 +1,4 @@\n"
+                " [project]\n"
+                " dependencies = [\n"
+                '-    "pytest-freezegun==0.4.2",\n'
+                "+    time-machine>=2.14.0,<3.0.0\n"
+                " ]\n"
+            ),
+        ),
+    )
+
+    report = analyze_patch_quality(run)
+
+    assert report is not None
+    assert len(report.toml_errors) == 1
+    assert "pyproject.toml" in report.toml_errors[0]
+    assert quality_status(report) == "risky"
+
+
 def test_analyze_patch_quality_flags_repeated_added_lines(tmp_path: Path) -> None:
     run = make_run(
         tmp_path,

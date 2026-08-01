@@ -27,6 +27,7 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Patch quality now catches repeated generated code. | The latest PyYAML engineered run is marked `warning` because the diff added `length += 1` repeatedly. | Evaluations should expose pathological patches even when syntax is valid. |
 | Edit-attempt metrics expose failed workflows directly. | The latest PyYAML engineered run made 29 edits with 22 repeated edit attempts; the latest ScanAPI engineered run made 25 edits but only validated twice after editing. | We can now distinguish bad search, bad editing, and bad validation recovery instead of treating every failure as one blob. |
 | Blocking repeated exact edits reduces loops but does not guarantee good patches. | The latest ScanAPI rerun dropped to 24 model calls and 23 tool calls, but still produced a syntax-broken patch that the static checker accepted. | The next step is stronger pre-validation patch review, not just loop prevention. |
+| Evaluations must replay the stored patch, not trust the current checkout. | After restoring ScanAPI, re-evaluating the run initially validated the clean checkout. Eval now replays the stored diff in a temp copy, while patch quality parses the patched Python and TOML. | Run artifacts remain auditable after benchmark repos are cleaned for reuse. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
 ## Latest Experiment Results
@@ -74,4 +75,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 25 adds deterministic repeat-edit blocking for `replace_line_range`. The latest ScanAPI rerun shows the loop-control improvement reduced tool churn, but patch quality still caught a risky syntax-broken patch.
+Milestone 26 makes evaluation and patch quality replay stored diffs in temporary copies, adds TOML syntax preflight, and keeps restored benchmark checkouts from changing historical eval results.
