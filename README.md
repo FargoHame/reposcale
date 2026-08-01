@@ -20,6 +20,7 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Semantic localization is now the bottleneck on PyYAML. | The line-range patch changed `scan_plain_spaces`, but validation still failed at the scanner's token boundary handling. | The next harness improvement should extract better failure evidence from validation and point the agent to the responsible phase. |
 | Validation evidence makes failures easier to audit. | PyYAML still failed after validation summaries, but reports now surface the exact headline: trailing tab still raises `ScannerError` while scanning for the next token. | This gives the agent and evaluator a cleaner signal than raw stdout alone. |
 | Static checkers can overstate success. | The latest ScanAPI engineered run passed the checker, but the diff duplicated imports/decorators and looked structurally broken. | We need stronger evals that run representative tests or inspect patch quality, not only static migration markers. |
+| Patch-quality warnings catch suspicious passes. | ScanAPI still reports `passed`, but detailed reports now flag duplicate imports and decorators in the patch. | This separates task-check success from human-review risk. |
 | The harness changes generalize on a fresh local task. | The new tiny serialization benchmark passed with 10 model calls, 9 tool calls, no invalid responses, and a one-file patch. | The line/edit/context improvements are not only PyYAML-specific. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
@@ -68,4 +69,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 20 adds validation-evidence summaries. Eval artifacts and engineered `run_validation` feedback now include a compact headline, error lines, traceback locations, and pytest summary when available. The next improvement should use this evidence for retry guidance and add patch-quality warnings such as Python syntax checks and duplicate import/decorator detection.
+Milestone 21 adds patch-quality warnings. Eval artifacts and detailed reports now flag Python syntax errors, duplicate imports, duplicate decorators, and generated dependency files. These warnings do not change pass/fail status yet; they make suspicious passes visible for human review and later scoring.

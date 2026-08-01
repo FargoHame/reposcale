@@ -99,6 +99,14 @@ class ValidationEvidence(BaseModel):
     pytest_summary: list[str] = Field(default_factory=list)
 
 
+class PatchQualityReport(BaseModel):
+    warnings: list[str] = Field(default_factory=list)
+    syntax_errors: list[str] = Field(default_factory=list)
+    duplicate_imports: list[str] = Field(default_factory=list)
+    duplicate_decorators: list[str] = Field(default_factory=list)
+    generated_files: list[str] = Field(default_factory=list)
+
+
 class EvaluationResult(BaseModel):
     eval_id: str
     run_id: str
@@ -108,6 +116,7 @@ class EvaluationResult(BaseModel):
     evaluated_at: datetime
     test_command: CommandResult | None = None
     validation_evidence: ValidationEvidence | None = None
+    patch_quality: PatchQualityReport | None = None
     patch_applies: bool | None = None
     tests_passed: int | None = None
     tests_failed: int | None = None

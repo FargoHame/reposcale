@@ -5,6 +5,7 @@ from pathlib import Path
 
 from reposcale.artifacts import load_evaluation, load_run
 from reposcale.diagnostics import collect_run_diagnostics
+from reposcale.patch_quality import analyze_patch_quality, render_patch_quality
 from reposcale.schemas import EvaluationResult, RunArtifact, RunDiagnostics, TraceEvent
 from reposcale.validation_evidence import render_validation_evidence, summarize_validation
 
@@ -156,6 +157,8 @@ def render_row_details(row: ReportRow) -> str:
                 "",
                 indent_text(render_validation_evidence(get_validation_evidence(evaluation)), "  "),
                 "",
+                indent_text(render_patch_quality(get_patch_quality(run, evaluation)), "  "),
+                "",
                 "Eval stdout tail:",
                 indent_text(tail(evaluation.test_command.stdout), "  "),
             ]
@@ -174,6 +177,10 @@ def get_diagnostics(run: RunArtifact) -> RunDiagnostics:
 
 def get_validation_evidence(evaluation: EvaluationResult):
     return evaluation.validation_evidence or summarize_validation(evaluation.test_command)
+
+
+def get_patch_quality(run: RunArtifact, evaluation: EvaluationResult):
+    return evaluation.patch_quality or analyze_patch_quality(run)
 
 
 def render_diagnostics(diagnostics: RunDiagnostics) -> str:

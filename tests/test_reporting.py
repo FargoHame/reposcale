@@ -40,6 +40,7 @@ def test_render_report_details_include_tools_diff_and_eval_tail(tmp_path: Path) 
     assert "Eval stdout tail:" in report
     assert "Validation evidence:" in report
     assert "headline: Test command exited successfully." in report
+    assert "Patch quality:" in report
     assert "2 passed" in report
 
 
@@ -212,6 +213,13 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
                 "error_lines": [],
                 "traceback_locations": [],
                 "pytest_summary": ["2 passed"],
+            },
+            "patch_quality": {
+                "warnings": [],
+                "syntax_errors": [],
+                "duplicate_imports": [],
+                "duplicate_decorators": [],
+                "generated_files": [],
             },
         }
     ),

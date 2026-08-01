@@ -223,6 +223,7 @@ def test_eval_records_failed_command(tmp_path: Path) -> None:
     assert eval_artifact["test_command"]["timed_out"] is False
     assert eval_artifact["validation_evidence"]["exit_code"] == 1
     assert "AssertionError" in eval_artifact["validation_evidence"]["headline"]
+    assert eval_artifact["patch_quality"]["warnings"] == []
 
 
 def test_eval_records_timed_out_command(tmp_path: Path) -> None:
