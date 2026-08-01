@@ -24,14 +24,22 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
     syntax_errors = find_python_syntax_errors(run.task.repo_path, run.patch)
     duplicate_imports = find_duplicate_added_lines(run.patch.diff, ("import ", "from "))
     duplicate_decorators = find_duplicate_added_lines(run.patch.diff, ("@",))
+    repeated_added_lines = find_repeated_added_lines(run.patch.diff)
     generated_files = find_generated_files(run.patch)
-    warnings = build_warnings(syntax_errors, duplicate_imports, duplicate_decorators, generated_files)
+    warnings = build_warnings(
+        syntax_errors,
+        duplicate_imports,
+        duplicate_decorators,
+        repeated_added_lines,
+        generated_files,
+    )
 
     return PatchQualityReport(
         warnings=warnings,
         syntax_errors=syntax_errors,
         duplicate_imports=duplicate_imports,
         duplicate_decorators=duplicate_decorators,
+        repeated_added_lines=repeated_added_lines,
         generated_files=generated_files,
     )
 
@@ -87,6 +95,38 @@ def find_duplicate_additions_in_hunk(hunk_lines: list[tuple[bool, str]], prefixe
     return [line for line in added if counts.get(line, 0) > 1]
 
 
+def find_repeated_added_lines(diff: str, minimum_repetitions: int = 3) -> list[str]:
+    repeated: list[str] = []
+    hunk_added_lines: list[str] = []
+    for raw_line in diff.splitlines():
+        if raw_line.startswith("@@"):
+            repeated.extend(find_repeated_lines(hunk_added_lines, minimum_repetitions))
+            hunk_added_lines = []
+            continue
+        if raw_line.startswith("+++") or raw_line.startswith("---") or not raw_line.startswith("+"):
+            continue
+        stripped = raw_line[1:].strip()
+        if is_meaningful_repeated_line_candidate(stripped):
+            hunk_added_lines.append(stripped)
+    repeated.extend(find_repeated_lines(hunk_added_lines, minimum_repetitions))
+    return dedupe(repeated)
+
+
+def is_meaningful_repeated_line_candidate(line: str) -> bool:
+    if len(line) < 6:
+        return False
+    if line.startswith(("#", "//", "/*", "*")):
+        return False
+    return line not in {"break", "continue", "return", "pass"}
+
+
+def find_repeated_lines(lines: list[str], minimum_repetitions: int) -> list[str]:
+    counts: dict[str, int] = {}
+    for line in lines:
+        counts[line] = counts.get(line, 0) + 1
+    return [line for line, count in counts.items() if count >= minimum_repetitions]
+
+
 def find_generated_files(patch: PatchSnapshot) -> list[str]:
     changed = [*patch.changed_files, *patch.untracked_files]
     return [path for path in changed if Path(path).name in GENERATED_FILE_NAMES]
@@ -96,12 +136,14 @@ def build_warnings(
     syntax_errors: list[str],
     duplicate_imports: list[str],
     duplicate_decorators: list[str],
+    repeated_added_lines: list[str],
     generated_files: list[str],
 ) -> list[str]:
     warnings: list[str] = []
     warnings.extend(f"python syntax error: {error}" for error in syntax_errors)
     warnings.extend(f"possible duplicate import: {line}" for line in duplicate_imports)
     warnings.extend(f"possible duplicate decorator: {line}" for line in duplicate_decorators)
+    warnings.extend(f"repeated added line: {line}" for line in repeated_added_lines)
     warnings.extend(f"generated dependency file changed: {path}" for path in generated_files)
     return warnings
 

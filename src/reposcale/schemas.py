@@ -104,6 +104,7 @@ class PatchQualityReport(BaseModel):
     syntax_errors: list[str] = Field(default_factory=list)
     duplicate_imports: list[str] = Field(default_factory=list)
     duplicate_decorators: list[str] = Field(default_factory=list)
+    repeated_added_lines: list[str] = Field(default_factory=list)
     generated_files: list[str] = Field(default_factory=list)
 
 

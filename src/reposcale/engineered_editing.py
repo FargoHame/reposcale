@@ -52,6 +52,11 @@ def replace_file_line_range(
     if preserve_indentation:
         replacement = rebase_replacement_indentation(lines[start_line - 1], replacement)
     updated = "".join(lines[: start_line - 1] + replacement + lines[end_line:])
+    if updated == content:
+        return (
+            f"no-op: replacement left {file_path} unchanged at lines {start_line}-{end_line}. "
+            "Read the current target region and choose a different edit or stop if validation is already decisive."
+        )
     target.write_text(updated, encoding="utf-8", newline="")
     return f"replaced lines {start_line}-{end_line} in {file_path}"
 

@@ -17,6 +17,7 @@ Workflow:
 Rules:
 - Work only inside the task repository.
 - Prefer grep/glob before broad file reads.
+- Prefer search_context when you know an error phrase, symbol, or function name and need nearby numbered lines.
 - Avoid unrelated docs/config edits unless the task asks for them.
 - Do not keep searching after you have found the target function.
 - Use replace_line_range when you know the target line numbers or exact edit_file replacement fails.
@@ -32,6 +33,8 @@ def build_engineered_prompt(task: TaskSpec) -> str:
         "Repository root is mounted as the filesystem root.\n"
         f"Problem:\n{task.problem_statement}\n\n"
         f"Validation: use the run_validation tool. It runs: {validation}\n"
+        "Context search: use search_context(pattern, path, file_glob, context_lines) "
+        "to get compact numbered snippets around exact matches before reading broad files.\n"
         "Editing: use replace_line_range(file_path, start_line, end_line, new_text) "
         "when a read_file result gives reliable line numbers. It rebases replacement "
         "indentation onto the original code block by default.\n"

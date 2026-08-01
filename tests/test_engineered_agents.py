@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from reposcale.engineered_agents import run_engineered_agent, to_langchain_model_name
+from reposcale.engineered_agents import make_search_context_tool, run_engineered_agent, to_langchain_model_name
 from reposcale.engineered_backend import GuardedFilesystemBackend
 from reposcale.engineered_editing import replace_file_line_range
 from reposcale.engineered_trace import trace_from_deepagents_result
@@ -207,6 +207,16 @@ def test_replace_file_line_range_can_delete_lines(tmp_path) -> None:
     assert path.read_text(encoding="utf-8") == "one\nthree\n"
 
 
+def test_replace_file_line_range_reports_no_op(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+
+    result = replace_file_line_range(tmp_path, "example.py", 1, 1, "value = 1")
+
+    assert result.startswith("no-op:")
+    assert path.read_text(encoding="utf-8") == "value = 1\n"
+
+
 def test_replace_file_line_range_rejects_invalid_ranges(tmp_path) -> None:
     path = tmp_path / "example.py"
     path.write_text("one\n", encoding="utf-8")
@@ -221,6 +231,31 @@ def test_replace_file_line_range_rejects_paths_outside_repo(tmp_path) -> None:
 
     try:
         replace_file_line_range(tmp_path, f"../{outside.name}", 1, 1, "x")
+    except ValueError as error:
+        assert "path escapes task repo" in str(error)
+    else:
+        raise AssertionError("expected path escape rejection")
+
+
+def test_search_context_returns_numbered_snippet(tmp_path) -> None:
+    path = tmp_path / "pkg" / "example.py"
+    path.parent.mkdir()
+    path.write_text("one\nneedle = True\nthree\n", encoding="utf-8")
+    search_context = make_search_context_tool(make_task(tmp_path))
+
+    result = search_context("needle", path="/pkg", context_lines=1)
+
+    assert "/pkg/example.py:2" in result
+    assert " 1: one" in result
+    assert ">2: needle = True" in result
+    assert " 3: three" in result
+
+
+def test_search_context_rejects_path_escape(tmp_path) -> None:
+    search_context = make_search_context_tool(make_task(tmp_path))
+
+    try:
+        search_context("needle", path="../outside")
     except ValueError as error:
         assert "path escapes task repo" in str(error)
     else:

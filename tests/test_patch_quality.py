@@ -59,6 +59,31 @@ def test_analyze_patch_quality_flags_syntax_errors_and_generated_files(tmp_path:
     assert quality_status(report) == "risky"
 
 
+def test_analyze_patch_quality_flags_repeated_added_lines(tmp_path: Path) -> None:
+    run = make_run(
+        tmp_path,
+        PatchSnapshot(
+            repo_path=tmp_path,
+            is_git_repo=True,
+            changed_files=["example.py"],
+            diff=(
+                "diff --git a/example.py b/example.py\n"
+                "@@ -1,1 +1,4 @@\n"
+                "+length += 1\n"
+                "+length += 1\n"
+                "+length += 1\n"
+            ),
+        ),
+    )
+    (tmp_path / "example.py").write_text("length += 1\nlength += 1\nlength += 1\n", encoding="utf-8")
+
+    report = analyze_patch_quality(run)
+
+    assert report is not None
+    assert report.repeated_added_lines == ["length += 1"]
+    assert "repeated added line: length += 1" in report.warnings
+
+
 def make_run(repo_path: Path, patch: PatchSnapshot) -> RunArtifact:
     now = datetime.now(timezone.utc)
     return RunArtifact(
