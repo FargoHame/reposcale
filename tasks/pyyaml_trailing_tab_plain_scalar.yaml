@@ -1,0 +1,19 @@
+task_id: pyyaml-trailing-tab-plain-scalar
+title: Parse trailing tab after a YAML plain scalar
+repo_path: benchmarks/external/pyyaml
+problem_statement: |
+  PyYAML issue #450 reports that a YAML document fails to parse when a sequence item has a tab after a plain scalar value.
+
+  Reproduction:
+
+    test:
+      - foo <TAB>
+      - bar
+
+  PyYAML currently raises "Found character '\t' that cannot start any token." The issue argues that this tab is not indentation and is not separating tokens, so the document should parse consistently with other YAML parsers.
+
+  Make the smallest focused change so safe_load parses this document as {"test": ["foo", "bar"]}.
+
+  Reference issue: https://github.com/yaml/pyyaml/issues/450
+test_command: python ../../../scripts/check_pyyaml_trailing_tab.py
+test_timeout_seconds: 15
