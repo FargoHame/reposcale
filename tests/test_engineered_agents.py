@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from reposcale.engineered_agents import (
     GuardedFilesystemBackend,
+    replace_file_line_range,
     run_engineered_agent,
     to_langchain_model_name,
     trace_from_deepagents_result,
@@ -127,6 +128,20 @@ def test_guarded_filesystem_backend_warns_after_many_reads_without_edit(tmp_path
     assert "GUARDRAIL" in result.file_data["content"]
 
 
+def test_guarded_filesystem_backend_blocks_repeated_search_context_without_edit(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    backend = GuardedFilesystemBackend(root_dir=tmp_path, virtual_mode=True)
+
+    result = None
+    for _ in range(9):
+        result = backend.grep("value")
+
+    assert result is not None
+    assert result.error is not None
+    assert "replace_line_range" in result.error
+
+
 def test_guarded_filesystem_backend_resets_read_guardrail_after_edit(tmp_path) -> None:
     path = tmp_path / "example.py"
     path.write_text("value = 1\n", encoding="utf-8")
@@ -139,6 +154,80 @@ def test_guarded_filesystem_backend_resets_read_guardrail_after_edit(tmp_path) -
 
     assert result.file_data is not None
     assert "GUARDRAIL" not in result.file_data["content"]
+
+
+def test_replace_file_line_range_replaces_inclusive_lines(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("one\ntwo\nthree\n", encoding="utf-8")
+
+    result = replace_file_line_range(tmp_path, "/example.py", 2, 2, "TWO")
+
+    assert result == "replaced lines 2-2 in /example.py"
+    assert path.read_text(encoding="utf-8") == "one\nTWO\nthree\n"
+
+
+def test_replace_file_line_range_preserves_single_line_indentation_by_default(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("if ready:\n    value = 1\n", encoding="utf-8")
+
+    replace_file_line_range(tmp_path, "example.py", 2, 2, "      value = 2")
+
+    assert path.read_text(encoding="utf-8") == "if ready:\n    value = 2\n"
+
+
+def test_replace_file_line_range_rebases_multiline_indentation_by_default(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("while ready:\n    old_call()\n", encoding="utf-8")
+
+    replace_file_line_range(tmp_path, "example.py", 1, 2, "  while ready:\n      new_call()")
+
+    assert path.read_text(encoding="utf-8") == "while ready:\n    new_call()\n"
+
+
+def test_replace_file_line_range_can_disable_indentation_preservation(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("if ready:\n    value = 1\n", encoding="utf-8")
+
+    replace_file_line_range(
+        tmp_path,
+        "example.py",
+        2,
+        2,
+        "value = 2",
+        preserve_indentation=False,
+    )
+
+    assert path.read_text(encoding="utf-8") == "if ready:\nvalue = 2\n"
+
+
+def test_replace_file_line_range_can_delete_lines(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("one\ntwo\nthree\n", encoding="utf-8")
+
+    result = replace_file_line_range(tmp_path, "example.py", 2, 2, "")
+
+    assert result == "replaced lines 2-2 in example.py"
+    assert path.read_text(encoding="utf-8") == "one\nthree\n"
+
+
+def test_replace_file_line_range_rejects_invalid_ranges(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("one\n", encoding="utf-8")
+
+    assert replace_file_line_range(tmp_path, "example.py", 0, 1, "x") == "error: start_line must be >= 1"
+    assert replace_file_line_range(tmp_path, "example.py", 2, 1, "x") == "error: end_line must be >= start_line"
+    assert replace_file_line_range(tmp_path, "example.py", 1, 2, "x") == "error: end_line 2 is past file length 1"
+
+
+def test_replace_file_line_range_rejects_paths_outside_repo(tmp_path) -> None:
+    outside = tmp_path.parent / "outside.py"
+
+    try:
+        replace_file_line_range(tmp_path, f"../{outside.name}", 1, 1, "x")
+    except ValueError as error:
+        assert "path escapes task repo" in str(error)
+    else:
+        raise AssertionError("expected path escape rejection")
 
 
 def make_task(repo_path):

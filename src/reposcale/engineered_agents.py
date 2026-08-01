@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Literal
 
 from reposcale.commands import run_command
@@ -17,7 +18,7 @@ Workflow:
 1. Write a short todo plan.
 2. Search for the smallest relevant context.
 3. Read only files needed for the fix.
-4. Make a focused patch.
+4. Make a focused patch with replace_line_range when line numbers are known.
 5. Run the validation tool.
 6. Stop when validation passes or when you can clearly explain the blocker.
 
@@ -25,6 +26,8 @@ Rules:
 - Work only inside the task repository.
 - Prefer grep/glob before broad file reads.
 - Avoid unrelated docs/config edits unless the task asks for them.
+- Do not keep searching after you have found the target function.
+- Use replace_line_range when you know the target line numbers or exact edit_file replacement fails.
 - Use the validation tool instead of inventing a test command.
 """
 
@@ -85,7 +88,7 @@ def create_agent(task: TaskSpec, model: ModelConfig) -> Any:
     backend = GuardedFilesystemBackend(root_dir=task.repo_path.resolve(), virtual_mode=True)
     return create_deep_agent(
         model=chat_model,
-        tools=[make_validation_tool(task)],
+        tools=[make_validation_tool(task), make_replace_line_range_tool(task)],
         system_prompt=ENGINEERED_SYSTEM_PROMPT,
         backend=backend,
     )
@@ -96,12 +99,38 @@ class GuardedFilesystemBackend:
         from deepagents.backends import FilesystemBackend
 
         class _GuardedFilesystemBackend(FilesystemBackend):
-            CONTEXT_READ_GUARDRAIL_THRESHOLD = 8
+            CONTEXT_GUARDRAIL_THRESHOLD = 8
 
             def __init__(self, guarded_root_dir, guarded_virtual_mode: bool = True) -> None:
                 super().__init__(root_dir=guarded_root_dir, virtual_mode=guarded_virtual_mode)
                 self._failed_edit_counts: dict[tuple[str, str, bool], int] = {}
-                self._reads_since_write_or_edit = 0
+                self._context_calls_since_write_or_edit = 0
+
+            def ls(self, path: str):
+                result = super().ls(path)
+                if self._record_context_call() and result.error is None:
+                    result.error = context_guardrail_message()
+                return result
+
+            def grep(
+                self,
+                pattern: str,
+                path: str | None = None,
+                glob: str | None = None,
+                *,
+                max_count: int | None = None,
+                context_lines: int = 0,
+            ):
+                result = super().grep(pattern, path, glob, max_count=max_count, context_lines=context_lines)
+                if self._record_context_call() and result.error is None:
+                    result.error = context_guardrail_message()
+                return result
+
+            def glob(self, pattern: str, path: str | None = None):
+                result = super().glob(pattern, path)
+                if self._record_context_call() and result.error is None:
+                    result.error = context_guardrail_message()
+                return result
 
             def read(
                 self,
@@ -110,27 +139,30 @@ class GuardedFilesystemBackend:
                 limit: int = 2000,
             ):
                 result = super().read(file_path, offset, limit)
-                self._reads_since_write_or_edit += 1
+                should_warn = self._record_context_call()
                 if (
-                    result.error is None
+                    should_warn
+                    and result.error is None
                     and result.file_data is not None
                     and result.file_data.get("encoding") == "utf-8"
-                    and self._reads_since_write_or_edit > self.CONTEXT_READ_GUARDRAIL_THRESHOLD
                 ):
                     result.file_data["content"] = (
                         f"{result.file_data['content']}\n\n"
-                        "GUARDRAIL: You have read many file regions without making a patch. "
-                        "Stop broad context gathering. Make the smallest likely edit now, "
-                        "or run validation if you believe the repository is already fixed."
+                        f"{context_guardrail_message()} "
+                        "This narrow read is allowed so you can use the visible line numbers."
                     )
                 return result
+
+            def _record_context_call(self) -> bool:
+                self._context_calls_since_write_or_edit += 1
+                return self._context_calls_since_write_or_edit > self.CONTEXT_GUARDRAIL_THRESHOLD
 
             def write(
                 self,
                 file_path: str,
                 content: str,
             ):
-                self._reads_since_write_or_edit = 0
+                self._context_calls_since_write_or_edit = 0
                 return super().write(file_path, content)
 
             def edit(
@@ -140,7 +172,7 @@ class GuardedFilesystemBackend:
                 new_string: str,
                 replace_all: bool = False,
             ):
-                self._reads_since_write_or_edit = 0
+                self._context_calls_since_write_or_edit = 0
                 result = super().edit(file_path, old_string, new_string, replace_all)
                 if result.error is None:
                     self._failed_edit_counts.pop((file_path, old_string, replace_all), None)
@@ -160,6 +192,14 @@ class GuardedFilesystemBackend:
                 return result
 
         return _GuardedFilesystemBackend(root_dir, virtual_mode)
+
+
+def context_guardrail_message() -> str:
+    return (
+        "GUARDRAIL: Too many context-gathering tool calls have happened without a patch. "
+        "Stop searching/listing. If you have line numbers, call replace_line_range now. "
+        "If one final look is required, read one narrow target region only."
+    )
 
 
 def to_langchain_model_name(model: ModelConfig) -> str:
@@ -185,6 +225,108 @@ def make_validation_tool(task: TaskSpec):
     return run_validation
 
 
+def make_replace_line_range_tool(task: TaskSpec):
+    def replace_line_range(
+        file_path: str,
+        start_line: int,
+        end_line: int,
+        new_text: str,
+        preserve_indentation: bool = True,
+    ) -> str:
+        """Replace a 1-based inclusive line range in a repository file."""
+        return replace_file_line_range(
+            task.repo_path,
+            file_path,
+            start_line,
+            end_line,
+            new_text,
+            preserve_indentation=preserve_indentation,
+        )
+
+    return replace_line_range
+
+
+def replace_file_line_range(
+    repo_path: Path,
+    file_path: str,
+    start_line: int,
+    end_line: int,
+    new_text: str,
+    preserve_indentation: bool = True,
+) -> str:
+    target = resolve_virtual_repo_path(repo_path, file_path)
+    if not target.is_file():
+        return f"error: file not found: {file_path}"
+    if start_line < 1:
+        return "error: start_line must be >= 1"
+    if end_line < start_line:
+        return "error: end_line must be >= start_line"
+
+    content = target.read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+    if end_line > len(lines):
+        return f"error: end_line {end_line} is past file length {len(lines)}"
+
+    newline = "\r\n" if "\r\n" in content else "\n"
+    replacement = normalize_replacement_lines(new_text, newline)
+    if preserve_indentation:
+        replacement = rebase_replacement_indentation(lines[start_line - 1], replacement)
+    updated = "".join(lines[: start_line - 1] + replacement + lines[end_line:])
+    target.write_text(updated, encoding="utf-8", newline="")
+    return f"replaced lines {start_line}-{end_line} in {file_path}"
+
+
+def normalize_replacement_lines(new_text: str, newline: str) -> list[str]:
+    if new_text == "":
+        return []
+    normalized = new_text.replace("\r\n", "\n").replace("\r", "\n")
+    replacement = [line + newline for line in normalized.split("\n")]
+    if normalized.endswith("\n"):
+        replacement.pop()
+    return replacement
+
+
+def leading_whitespace(line: str) -> str:
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
+def rebase_replacement_indentation(original_first_line: str, replacement: list[str]) -> list[str]:
+    first_replacement = first_nonblank_line(replacement)
+    if first_replacement is None:
+        return replacement
+
+    original_indent = leading_whitespace(original_first_line)
+    replacement_indent = leading_whitespace(first_replacement)
+    if original_indent == replacement_indent:
+        return replacement
+
+    rebased: list[str] = []
+    for line in replacement:
+        if line.strip() == "":
+            rebased.append(line)
+        elif line.startswith(replacement_indent):
+            rebased.append(original_indent + line[len(replacement_indent) :])
+        else:
+            rebased.append(original_indent + line.lstrip(" \t"))
+    return rebased
+
+
+def first_nonblank_line(lines: list[str]) -> str | None:
+    for line in lines:
+        if line.strip():
+            return line
+    return None
+
+
+def resolve_virtual_repo_path(repo_path: Path, file_path: str) -> Path:
+    relative_path = file_path[1:] if file_path.startswith("/") else file_path
+    target = (repo_path / relative_path).resolve()
+    root = repo_path.resolve()
+    if target != root and root not in target.parents:
+        raise ValueError(f"path escapes task repo: {file_path}")
+    return target
+
+
 def build_engineered_prompt(task: TaskSpec) -> str:
     validation = task.test_command or "No validation command provided."
     return (
@@ -193,6 +335,9 @@ def build_engineered_prompt(task: TaskSpec) -> str:
         "Repository root is mounted as the filesystem root.\n"
         f"Problem:\n{task.problem_statement}\n\n"
         f"Validation: use the run_validation tool. It runs: {validation}\n"
+        "Editing: use replace_line_range(file_path, start_line, end_line, new_text) "
+        "when a read_file result gives reliable line numbers. It rebases replacement "
+        "indentation onto the original code block by default.\n"
     )
 
 

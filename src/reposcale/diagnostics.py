@@ -6,7 +6,7 @@ from reposcale.schemas import RunArtifact, RunDiagnostics, TraceEvent
 
 CONTEXT_STALL_THRESHOLD = 8
 CONTEXT_TOOLS = {"read_file", "grep", "glob", "ls"}
-PHASE_RESET_TOOLS = {"edit_file", "write_file", "run_validation", "run_command"}
+PHASE_RESET_TOOLS = {"edit_file", "write_file", "replace_line_range", "run_validation", "run_command"}
 
 
 def collect_run_diagnostics(run: RunArtifact) -> RunDiagnostics:
