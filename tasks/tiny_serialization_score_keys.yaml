@@ -1,0 +1,14 @@
+task_id: tiny-serialization-score-keys
+title: Preserve integer score keys across JSON round trip
+repo_path: benchmarks/tiny_serialization
+problem_statement: |
+  The tiny_serialization package stores user records as JSON. Records can contain a "scores" mapping whose keys are integer problem IDs.
+
+  JSON object keys are strings, so decode_record currently turns those score IDs into strings. This breaks callers that expect decode_record(encode_record(record)) to equal the original record.
+
+  Make the smallest focused change so:
+  - integer keys under the top-level "scores" mapping round-trip as integers
+  - decoding JSON payloads with integer-like "scores" keys converts those keys to integers
+  - unrelated mappings such as "metadata" keep their string keys unchanged
+test_command: uv run pytest
+test_timeout_seconds: 15
