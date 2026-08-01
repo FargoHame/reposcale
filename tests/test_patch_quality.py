@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from reposcale.patch_quality import analyze_patch_quality, find_duplicate_added_lines, render_patch_quality
+from reposcale.patch_quality import analyze_patch_quality, find_duplicate_added_lines, quality_status, render_patch_quality
 from reposcale.schemas import PatchSnapshot, RunArtifact, TaskSpec
 
 
@@ -56,6 +56,7 @@ def test_analyze_patch_quality_flags_syntax_errors_and_generated_files(tmp_path:
     assert "python syntax error: broken.py:1: invalid syntax" in report.warnings
     assert "generated dependency file changed: uv.lock" in report.warnings
     assert "Patch quality warnings:" in render_patch_quality(report)
+    assert quality_status(report) == "risky"
 
 
 def make_run(repo_path: Path, patch: PatchSnapshot) -> RunArtifact:

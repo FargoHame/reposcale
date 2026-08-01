@@ -5,7 +5,7 @@ from pathlib import Path
 
 from reposcale.artifacts import load_evaluation, load_run
 from reposcale.diagnostics import collect_run_diagnostics
-from reposcale.patch_quality import analyze_patch_quality, render_patch_quality
+from reposcale.patch_quality import analyze_patch_quality, is_clean_pass, quality_status, render_patch_quality
 from reposcale.schemas import EvaluationResult, RunArtifact, RunDiagnostics, TraceEvent
 from reposcale.validation_evidence import render_validation_evidence, summarize_validation
 
@@ -73,6 +73,8 @@ def render_summary_table(rows: list[ReportRow]) -> str:
         "agent",
         "run",
         "eval",
+        "quality",
+        "clean",
         "model",
         "tools",
         "invalid",
@@ -94,12 +96,15 @@ def render_summary_table(rows: list[ReportRow]) -> str:
         evaluation = row.evaluation
         diagnostics = get_diagnostics(run)
         test_command = evaluation.test_command if evaluation else None
+        evaluation_quality = get_quality_status(run, evaluation) if evaluation else "-"
         values.append(
             [
                 run.task.task_id,
                 run.agent,
                 run.status,
                 evaluation.status if evaluation else "missing",
+                evaluation_quality,
+                str(get_clean_pass(run, evaluation)) if evaluation else "-",
                 str(diagnostics.model_calls),
                 str(diagnostics.tool_calls),
                 str(diagnostics.invalid_responses),
@@ -181,6 +186,18 @@ def get_validation_evidence(evaluation: EvaluationResult):
 
 def get_patch_quality(run: RunArtifact, evaluation: EvaluationResult):
     return evaluation.patch_quality or analyze_patch_quality(run)
+
+
+def get_quality_status(run: RunArtifact, evaluation: EvaluationResult) -> str:
+    if evaluation.patch_quality is not None:
+        return evaluation.quality_status
+    return quality_status(analyze_patch_quality(run))
+
+
+def get_clean_pass(run: RunArtifact, evaluation: EvaluationResult) -> bool:
+    if evaluation.patch_quality is not None:
+        return is_clean_pass(evaluation)
+    return evaluation.status == "passed" and quality_status(analyze_patch_quality(run)) == "clean"
 
 
 def render_diagnostics(diagnostics: RunDiagnostics) -> str:

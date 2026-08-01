@@ -117,6 +117,8 @@ class EvaluationResult(BaseModel):
     test_command: CommandResult | None = None
     validation_evidence: ValidationEvidence | None = None
     patch_quality: PatchQualityReport | None = None
+    quality_status: Literal["clean", "warning", "risky"] = "clean"
+    clean_pass: bool = False
     patch_applies: bool | None = None
     tests_passed: int | None = None
     tests_failed: int | None = None
@@ -129,6 +131,8 @@ class EvaluationSummary(BaseModel):
     task_id: str
     agent: Literal["baseline", "engineered"]
     status: Literal["passed", "failed", "not_evaluated"]
+    quality_status: Literal["clean", "warning", "risky"] = "clean"
+    clean_pass: bool = False
     duration_seconds: float | None = None
     exit_code: int | None = None
     timed_out: bool | None = None

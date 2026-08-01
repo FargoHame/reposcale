@@ -40,6 +40,8 @@ def summarize_evaluation(evaluation: EvaluationResult) -> EvaluationSummary:
         task_id=evaluation.task_id,
         agent=evaluation.agent,
         status=evaluation.status,
+        quality_status=evaluation.quality_status,
+        clean_pass=evaluation.clean_pass,
         duration_seconds=command.duration_seconds if command else None,
         exit_code=command.exit_code if command else None,
         timed_out=command.timed_out if command else None,
@@ -54,18 +56,19 @@ def choose_winner(
     candidate_score = evaluation_score(candidate)
 
     if baseline_score > candidate_score:
-        return "baseline", ["Baseline has the better evaluation status."]
+        return "baseline", ["Baseline has the better evaluation and quality status."]
     if candidate_score > baseline_score:
-        return "candidate", ["Candidate has the better evaluation status."]
+        return "candidate", ["Candidate has the better evaluation and quality status."]
     if baseline_score == 0:
         return "none", ["Neither evaluation passed."]
     return "tie", ["Both evaluations have the same status."]
 
 
 def evaluation_score(evaluation: EvaluationResult) -> int:
-    scores = {
-        "failed": 0,
-        "not_evaluated": 1,
-        "passed": 2,
-    }
-    return scores[evaluation.status]
+    if evaluation.status == "passed" and evaluation.clean_pass:
+        return 4
+    if evaluation.status == "passed":
+        return 3
+    if evaluation.status == "not_evaluated":
+        return 1
+    return 0

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from reposcale.artifacts import load_run, write_artifact
 from reposcale.commands import run_command
-from reposcale.patch_quality import analyze_patch_quality
+from reposcale.patch_quality import analyze_patch_quality, quality_status
 from reposcale.schemas import CommandResult, EvaluationResult, TaskSpec
 from reposcale.validation_evidence import summarize_validation
 
@@ -18,6 +18,7 @@ def create_evaluation_artifact(run_path: Path, evals_dir: Path) -> Path:
     command_result = run_test_command(run_artifact.task)
     validation_evidence = summarize_validation(command_result)
     patch_quality = analyze_patch_quality(run_artifact)
+    patch_quality_status = quality_status(patch_quality)
     status, notes = evaluate_command_result(command_result)
 
     result = EvaluationResult(
@@ -30,6 +31,8 @@ def create_evaluation_artifact(run_path: Path, evals_dir: Path) -> Path:
         test_command=command_result,
         validation_evidence=validation_evidence,
         patch_quality=patch_quality,
+        quality_status=patch_quality_status,
+        clean_pass=status == "passed" and patch_quality_status == "clean",
         notes=notes,
     )
 

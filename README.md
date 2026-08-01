@@ -22,6 +22,7 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Static checkers can overstate success. | The latest ScanAPI engineered run passed the checker, but the diff duplicated imports/decorators and looked structurally broken. | We need stronger evals that run representative tests or inspect patch quality, not only static migration markers. |
 | Patch-quality warnings catch suspicious passes. | ScanAPI still reports `passed`, but detailed reports now flag duplicate imports and decorators in the patch. | This separates task-check success from human-review risk. |
 | The harness changes generalize on a fresh local task. | The new tiny serialization benchmark passed with 10 model calls, 9 tool calls, no invalid responses, and a one-file patch. | The line/edit/context improvements are not only PyYAML-specific. |
+| Clean pass is now separate from pass. | Eval artifacts record `quality_status` and `clean_pass`, so a static-check pass with patch warnings is not treated like a clean test pass. | This gives batch benchmarks a more honest success metric. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
 ## Latest Experiment Results
@@ -69,4 +70,4 @@ uv run pytest
 
 ## Next Milestone
 
-Milestone 21 adds patch-quality warnings. Eval artifacts and detailed reports now flag Python syntax errors, duplicate imports, duplicate decorators, and generated dependency files. These warnings do not change pass/fail status yet; they make suspicious passes visible for human review and later scoring.
+Milestone 22 adds `quality_status` and `clean_pass`, making clean passes distinct from warning/risky passes in artifacts, reports, and comparisons. Candidate GitHub issues for broader benchmark coverage are tracked in `docs/benchmark_candidates.md`.

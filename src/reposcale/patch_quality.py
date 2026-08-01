@@ -3,7 +3,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from reposcale.schemas import PatchQualityReport, PatchSnapshot, RunArtifact
+from typing import Literal
+
+from reposcale.schemas import EvaluationResult, PatchQualityReport, PatchSnapshot, RunArtifact
 
 
 GENERATED_FILE_NAMES = {
@@ -110,6 +112,18 @@ def render_patch_quality(report: PatchQualityReport | None) -> str:
     if not report.warnings:
         return "Patch quality: no warnings."
     return "\n".join(["Patch quality warnings:", *[f"- {warning}" for warning in report.warnings]])
+
+
+def quality_status(report: PatchQualityReport | None) -> Literal["clean", "warning", "risky"]:
+    if report is None or not report.warnings:
+        return "clean"
+    if report.syntax_errors:
+        return "risky"
+    return "warning"
+
+
+def is_clean_pass(evaluation: EvaluationResult) -> bool:
+    return evaluation.status == "passed" and evaluation.quality_status == "clean"
 
 
 def dedupe(values: list[str]) -> list[str]:

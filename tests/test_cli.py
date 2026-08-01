@@ -224,6 +224,8 @@ def test_eval_records_failed_command(tmp_path: Path) -> None:
     assert eval_artifact["validation_evidence"]["exit_code"] == 1
     assert "AssertionError" in eval_artifact["validation_evidence"]["headline"]
     assert eval_artifact["patch_quality"]["warnings"] == []
+    assert eval_artifact["quality_status"] == "clean"
+    assert eval_artifact["clean_pass"] is False
 
 
 def test_eval_records_timed_out_command(tmp_path: Path) -> None:
@@ -322,6 +324,25 @@ def test_compare_reports_tie_when_both_pass(tmp_path: Path) -> None:
     assert report["winner"] == "tie"
 
 
+def test_compare_prefers_clean_pass_over_warning_pass(tmp_path: Path) -> None:
+    baseline_path = write_eval(tmp_path, "baseline-eval", "baseline-run", "passed", quality_status="warning")
+    candidate_path = write_eval(tmp_path, "candidate-eval", "candidate-run", "passed", quality_status="clean")
+    reports_dir = tmp_path / "reports"
+
+    result = runner.invoke(
+        app,
+        ["compare", "--baseline", str(baseline_path), "--candidate", str(candidate_path), "--reports-dir", str(reports_dir)],
+    )
+
+    assert result.exit_code == 0
+    report = json.loads(next(reports_dir.glob("*.json")).read_text(encoding="utf-8"))
+    assert report["winner"] == "candidate"
+    assert report["baseline"]["quality_status"] == "warning"
+    assert report["baseline"]["clean_pass"] is False
+    assert report["candidate"]["quality_status"] == "clean"
+    assert report["candidate"]["clean_pass"] is True
+
+
 def write_task(
     tmp_path: Path,
     test_command: str | None,
@@ -353,7 +374,14 @@ def run_git(cwd: Path, args: list[str]) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def write_eval(tmp_path: Path, eval_id: str, run_id: str, status: str, task_id: str = "compare-test") -> Path:
+def write_eval(
+    tmp_path: Path,
+    eval_id: str,
+    run_id: str,
+    status: str,
+    task_id: str = "compare-test",
+    quality_status: str = "clean",
+) -> Path:
     path = tmp_path / f"{eval_id}.json"
     path.write_text(
         json.dumps(
@@ -363,6 +391,8 @@ def write_eval(tmp_path: Path, eval_id: str, run_id: str, status: str, task_id: 
                 "task_id": task_id,
                 "agent": "baseline" if "baseline" in eval_id else "engineered",
                 "status": status,
+                "quality_status": quality_status,
+                "clean_pass": status == "passed" and quality_status == "clean",
                 "evaluated_at": "2026-07-30T00:00:00Z",
             }
         ),

@@ -16,6 +16,8 @@ def test_render_report_summary_table(tmp_path: Path) -> None:
     assert "task-a" in report
     assert "baseline" in report
     assert "passed" in report
+    assert "quality" in report
+    assert "clean" in report
     assert "invalid" in report
     assert "tool_err" in report
     assert "rep_err" in report
@@ -221,6 +223,8 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
                 "duplicate_decorators": [],
                 "generated_files": [],
             },
+            "quality_status": "clean",
+            "clean_pass": status == "passed",
         }
     ),
         encoding="utf-8",
