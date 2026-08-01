@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from reposcale.commands import run_command
@@ -9,8 +10,10 @@ from reposcale.engineered_backend import GuardedFilesystemBackend
 from reposcale.engineered_editing import make_replace_line_range_tool, replace_file_line_range, resolve_virtual_repo_path
 from reposcale.engineered_prompts import ENGINEERED_SYSTEM_PROMPT, build_engineered_prompt
 from reposcale.engineered_trace import has_final_message, now, trace_from_deepagents_result
+from reposcale.git import capture_patch_snapshot
 from reposcale.llm import load_mistral_api_key
-from reposcale.schemas import ModelConfig, TaskSpec, TraceEvent
+from reposcale.patch_quality import analyze_patch_quality, quality_status, render_patch_quality
+from reposcale.schemas import ModelConfig, RunArtifact, TaskSpec, TraceEvent
 from reposcale.validation_evidence import render_validation_evidence, summarize_validation
 
 
@@ -67,7 +70,12 @@ def create_agent(task: TaskSpec, model: ModelConfig) -> Any:
     backend = GuardedFilesystemBackend(root_dir=task.repo_path.resolve(), virtual_mode=True)
     return create_deep_agent(
         model=chat_model,
-        tools=[make_validation_tool(task), make_search_context_tool(task), make_replace_line_range_tool(task)],
+        tools=[
+            make_validation_tool(task),
+            make_preflight_tool(task),
+            make_search_context_tool(task),
+            make_replace_line_range_tool(task),
+        ],
         system_prompt=ENGINEERED_SYSTEM_PROMPT,
         backend=backend,
     )
@@ -96,6 +104,32 @@ def make_validation_tool(task: TaskSpec):
         )
 
     return run_validation
+
+
+def make_preflight_tool(task: TaskSpec):
+    def run_preflight() -> str:
+        """Inspect the current patch for syntax and patch-quality problems before final validation."""
+        patch = capture_patch_snapshot(task.repo_path)
+        if not patch.changed_files and not patch.untracked_files and not patch.diff.strip():
+            return "Preflight: no patch changes detected."
+
+        now_timestamp = datetime.now(timezone.utc)
+        run = RunArtifact(
+            run_id="preflight",
+            task=task,
+            agent="engineered",
+            status="completed",
+            started_at=now_timestamp,
+            completed_at=now_timestamp,
+            patch=patch,
+        )
+        report = analyze_patch_quality(run)
+        status = quality_status(report)
+        if status == "clean":
+            return "Preflight passed: patch quality is clean."
+        return f"Preflight failed: quality_status={status}\n{render_patch_quality(report)}"
+
+    return run_preflight
 
 
 def make_search_context_tool(task: TaskSpec):

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from reposcale.engineered_agents import make_search_context_tool, run_engineered_agent, to_langchain_model_name
+import subprocess
+
+from reposcale.engineered_agents import make_preflight_tool, make_search_context_tool, run_engineered_agent, to_langchain_model_name
 from reposcale.engineered_backend import GuardedFilesystemBackend
 from reposcale.engineered_editing import make_replace_line_range_tool, replace_file_line_range
 from reposcale.engineered_trace import trace_from_deepagents_result
@@ -273,6 +275,38 @@ def test_search_context_rejects_path_escape(tmp_path) -> None:
         assert "path escapes task repo" in str(error)
     else:
         raise AssertionError("expected path escape rejection")
+
+
+def test_preflight_reports_no_patch_changes(tmp_path) -> None:
+    (tmp_path / "README.md").write_text("test\n", encoding="utf-8")
+    init_git_repo(tmp_path)
+    run_preflight = make_preflight_tool(make_task(tmp_path))
+
+    assert run_preflight() == "Preflight: no patch changes detected."
+
+
+def test_preflight_flags_invalid_toml_patch(tmp_path) -> None:
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = [\n    "old",\n]\n', encoding="utf-8")
+    init_git_repo(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[project]\ndependencies = [\ntime-machine>=2.14.0,<3.0.0\n]\n", encoding="utf-8")
+    run_preflight = make_preflight_tool(make_task(tmp_path))
+
+    result = run_preflight()
+
+    assert "Preflight failed: quality_status=risky" in result
+    assert "toml syntax error: pyproject.toml:" in result
+
+
+def init_git_repo(path):
+    subprocess.run(["git", "init"], cwd=path, capture_output=True, text=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=path, capture_output=True, text=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-m", "init"],
+        cwd=path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
 
 def make_task(repo_path):
