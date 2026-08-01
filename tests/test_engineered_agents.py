@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from reposcale.engineered_agents import run_engineered_agent, to_langchain_model_name, trace_from_deepagents_result
+from reposcale.engineered_agents import (
+    GuardedFilesystemBackend,
+    run_engineered_agent,
+    to_langchain_model_name,
+    trace_from_deepagents_result,
+)
 from reposcale.schemas import ModelConfig
 
 
@@ -11,10 +16,17 @@ class FakeAIMessage:
 
 
 class FakeToolMessage:
-    def __init__(self, content: str, name: str = "read_file", status: str = "success") -> None:
+    def __init__(
+        self,
+        content: str,
+        name: str = "read_file",
+        status: str = "success",
+        tool_call_id: str = "",
+    ) -> None:
         self.content = content
         self.name = name
         self.status = status
+        self.tool_call_id = tool_call_id
 
 
 FakeAIMessage.__name__ = "AIMessage"
@@ -47,11 +59,12 @@ def test_trace_from_deepagents_result_counts_tool_requests_once() -> None:
                 tool_calls=[
                     {
                         "name": "read_file",
+                        "id": "call-1",
                         "args": {"file_path": "/pyproject.toml"},
                     }
                 ],
             ),
-            FakeToolMessage("file content", name="read_file"),
+            FakeToolMessage("file content", name="read_file", tool_call_id="call-1"),
             FakeAIMessage("done"),
         ]
     }
@@ -67,6 +80,7 @@ def test_trace_from_deepagents_result_counts_tool_requests_once() -> None:
     ]
     assert trace[1].tool_name == "read_file"
     assert trace[1].tool_input == {"file_path": "/pyproject.toml"}
+    assert trace[2].tool_input == {"file_path": "/pyproject.toml"}
 
 
 def test_engineered_agent_records_recursion_limit_on_failure(monkeypatch, tmp_path) -> None:
@@ -83,6 +97,20 @@ def test_engineered_agent_records_recursion_limit_on_failure(monkeypatch, tmp_pa
     assert result.trace[-1].event_type == "model_error"
     assert result.trace[-1].metadata["recursion_limit"] == 123
     assert result.trace[0].event_type == "model_response"
+
+
+def test_guarded_filesystem_backend_warns_after_repeated_failed_edit(tmp_path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("value = 1\n", encoding="utf-8")
+    backend = GuardedFilesystemBackend(root_dir=tmp_path, virtual_mode=True)
+
+    first = backend.edit("/example.py", "missing", "replacement")
+    second = backend.edit("/example.py", "missing", "replacement")
+
+    assert first.error is not None
+    assert "GUARDRAIL" not in first.error
+    assert second.error is not None
+    assert "GUARDRAIL" in second.error
 
 
 def make_task(repo_path):

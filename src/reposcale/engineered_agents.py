@@ -73,7 +73,6 @@ def run_engineered_agent(
 
 def create_agent(task: TaskSpec, model: ModelConfig) -> Any:
     from deepagents import create_deep_agent
-    from deepagents.backends import FilesystemBackend
     from langchain.chat_models import init_chat_model
 
     chat_model = init_chat_model(
@@ -83,13 +82,50 @@ def create_agent(task: TaskSpec, model: ModelConfig) -> Any:
         timeout=120,
         max_retries=4,
     )
-    backend = FilesystemBackend(root_dir=task.repo_path.resolve(), virtual_mode=True)
+    backend = GuardedFilesystemBackend(root_dir=task.repo_path.resolve(), virtual_mode=True)
     return create_deep_agent(
         model=chat_model,
         tools=[make_validation_tool(task)],
         system_prompt=ENGINEERED_SYSTEM_PROMPT,
         backend=backend,
     )
+
+
+class GuardedFilesystemBackend:
+    def __new__(cls, root_dir, virtual_mode: bool = True):
+        from deepagents.backends import FilesystemBackend
+
+        class _GuardedFilesystemBackend(FilesystemBackend):
+            def __init__(self, guarded_root_dir, guarded_virtual_mode: bool = True) -> None:
+                super().__init__(root_dir=guarded_root_dir, virtual_mode=guarded_virtual_mode)
+                self._failed_edit_counts: dict[tuple[str, str, bool], int] = {}
+
+            def edit(
+                self,
+                file_path: str,
+                old_string: str,
+                new_string: str,
+                replace_all: bool = False,
+            ):
+                result = super().edit(file_path, old_string, new_string, replace_all)
+                if result.error is None:
+                    self._failed_edit_counts.pop((file_path, old_string, replace_all), None)
+                    return result
+
+                key = (file_path, old_string, replace_all)
+                count = self._failed_edit_counts.get(key, 0) + 1
+                self._failed_edit_counts[key] = count
+                if count >= 2:
+                    result.error = (
+                        f"{result.error}\n\n"
+                        "GUARDRAIL: This exact edit_file call has failed repeatedly. "
+                        "Do not call edit_file again with the same old_string. "
+                        "Read the current target region again, then use a smaller exact replacement "
+                        "or rewrite the full file with write_file."
+                    )
+                return result
+
+        return _GuardedFilesystemBackend(root_dir, virtual_mode)
 
 
 def to_langchain_model_name(model: ModelConfig) -> str:
@@ -129,6 +165,7 @@ def build_engineered_prompt(task: TaskSpec) -> str:
 def trace_from_deepagents_result(result: Any) -> list[TraceEvent]:
     trace: list[TraceEvent] = []
     messages = result.get("messages", []) if isinstance(result, dict) else []
+    pending_tool_inputs: dict[str, dict[str, object]] = {}
     for index, message in enumerate(messages, start=1):
         message_type = message.__class__.__name__
         tool_calls = getattr(message, "tool_calls", None)
@@ -144,13 +181,18 @@ def trace_from_deepagents_result(result: Any) -> list[TraceEvent]:
             )
             for tool_call in tool_calls:
                 if isinstance(tool_call, dict):
+                    tool_name = str(tool_call.get("name"))
+                    tool_input = dict(tool_call.get("args") or {})
+                    tool_call_id = str(tool_call.get("id") or "")
+                    if tool_call_id:
+                        pending_tool_inputs[tool_call_id] = tool_input
                     trace.append(
                         TraceEvent(
                             event_type="tool_call",
                             message="Deep agent tool call.",
                             timestamp=now(),
-                            tool_name=str(tool_call.get("name")),
-                            tool_input=dict(tool_call.get("args") or {}),
+                            tool_name=tool_name,
+                            tool_input=tool_input,
                             metadata={"step": index, "message_type": message_type},
                         )
                     )
@@ -158,12 +200,14 @@ def trace_from_deepagents_result(result: Any) -> list[TraceEvent]:
 
         if message_type == "ToolMessage":
             status = getattr(message, "status", "success")
+            tool_call_id = str(getattr(message, "tool_call_id", "") or "")
             trace.append(
                 TraceEvent(
                     event_type="tool_error" if status == "error" else "tool_result",
                     message="Deep agent tool result.",
                     timestamp=now(),
                     tool_name=str(getattr(message, "name", "") or ""),
+                    tool_input=pending_tool_inputs.get(tool_call_id),
                     output_summary=message_content(message),
                     metadata={"step": index, "message_type": message_type},
                 )

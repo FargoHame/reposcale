@@ -13,6 +13,7 @@ def collect_run_diagnostics(run: RunArtifact) -> RunDiagnostics:
         model_errors=count_events(run.trace, "model_error"),
         invalid_responses=count_invalid_responses(run.trace),
         repeated_tool_calls=count_repeated_tool_calls(run.trace),
+        repeated_tool_errors=count_repeated_tool_errors(run.trace),
         files_read=count_tool_name(run.trace, "read_file"),
         commands_run=count_tool_name(run.trace, "run_command"),
         max_steps_reached=any(event.message.startswith("Agent reached max_steps=") for event in run.trace),
@@ -48,6 +49,23 @@ def count_repeated_tool_calls(trace: list[TraceEvent]) -> int:
         if event.event_type != "tool_call" or event.tool_name is None:
             continue
         key = (event.tool_name, stable_json(event.tool_input or {}))
+        if key in seen:
+            repeated += 1
+        seen.add(key)
+    return repeated
+
+
+def count_repeated_tool_errors(trace: list[TraceEvent]) -> int:
+    seen: set[tuple[str, str, str]] = set()
+    repeated = 0
+    for event in trace:
+        if event.event_type != "tool_error" or event.tool_name is None:
+            continue
+        key = (
+            event.tool_name,
+            stable_json(event.tool_input or {}),
+            event.output_summary or event.message,
+        )
         if key in seen:
             repeated += 1
         seen.add(key)

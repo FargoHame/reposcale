@@ -53,6 +53,7 @@ class RunDiagnostics(BaseModel):
     model_errors: int = 0
     invalid_responses: int = 0
     repeated_tool_calls: int = 0
+    repeated_tool_errors: int = 0
     files_read: int = 0
     commands_run: int = 0
     max_steps_reached: bool = False
