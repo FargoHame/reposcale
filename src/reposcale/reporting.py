@@ -176,6 +176,16 @@ def render_row_details(row: ReportRow) -> str:
                 indent_text(tail(evaluation.test_command.stdout), "  "),
             ]
         )
+    if evaluation and evaluation.semantic_command:
+        parts.extend(
+            [
+                "",
+                "Semantic stdout tail:",
+                indent_text(tail(evaluation.semantic_command.stdout), "  "),
+                "",
+                indent_text(render_validation_evidence(evaluation.semantic_evidence), "  "),
+            ]
+        )
 
     return "\n".join(parts)
 

@@ -234,6 +234,7 @@ def write_eval(tmp_path: Path, run_id: str, status: str) -> None:
                 "toml_errors": [],
                 "duplicate_imports": [],
                 "duplicate_decorators": [],
+                "duplicate_assertions": [],
                 "repeated_added_lines": [],
                 "generated_files": [],
             },

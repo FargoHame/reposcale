@@ -22,7 +22,7 @@ Rules:
 - Avoid unrelated docs/config edits unless the task asks for them.
 - Do not keep searching after you have found the target function.
 - Use replace_line_range when you know the target line numbers or exact edit_file replacement fails.
-- Use run_preflight after edits and before final. Do not finish with Python, TOML, duplicate, or repeated-line warnings.
+- Use run_preflight after edits and before final. Do not finish with Python, TOML, duplicate, repeated-line, import, or semantic warnings.
 - Use the validation tool instead of inventing a test command.
 """
 
@@ -35,7 +35,7 @@ def build_engineered_prompt(task: TaskSpec) -> str:
         "Repository root is mounted as the filesystem root.\n"
         f"Problem:\n{task.problem_statement}\n\n"
         f"Validation: use the run_validation tool. It runs: {validation}\n"
-        "Preflight: use run_preflight after edits. If it reports warnings, fix them before finalizing.\n"
+        "Preflight: use run_preflight after edits. If it reports structural or semantic warnings, fix them before finalizing.\n"
         "Context search: use search_context(pattern, path, file_glob, context_lines) "
         "to get compact numbered snippets around exact matches before reading broad files.\n"
         "Editing: use replace_line_range(file_path, start_line, end_line, new_text) "

@@ -32,6 +32,7 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
         toml_errors = find_toml_syntax_errors(analysis_root, run.patch)
     duplicate_imports = find_duplicate_added_lines(run.patch.diff, ("import ", "from "))
     duplicate_decorators = find_duplicate_added_lines(run.patch.diff, ("@",))
+    duplicate_assertions = find_duplicate_added_lines(run.patch.diff, ("assert ",))
     repeated_added_lines = find_repeated_added_lines(run.patch.diff)
     generated_files = find_generated_files(run.patch)
     warnings = build_warnings(
@@ -39,6 +40,7 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
         toml_errors,
         duplicate_imports,
         duplicate_decorators,
+        duplicate_assertions,
         repeated_added_lines,
         generated_files,
     )
@@ -49,6 +51,7 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
         toml_errors=toml_errors,
         duplicate_imports=duplicate_imports,
         duplicate_decorators=duplicate_decorators,
+        duplicate_assertions=duplicate_assertions,
         repeated_added_lines=repeated_added_lines,
         generated_files=generated_files,
     )
@@ -58,6 +61,11 @@ def analyze_patch_quality(run: RunArtifact) -> PatchQualityReport | None:
 def patched_analysis_root(repo_path: Path, patch: PatchSnapshot) -> Iterator[Path]:
     if not patch.diff.strip():
         yield repo_path
+        return
+
+    if patch.is_git_repo and patch.base_ref:
+        with patched_git_analysis_root(repo_path, patch) as analysis_root:
+            yield analysis_root
         return
 
     with tempfile.TemporaryDirectory(prefix="reposcale_patch_quality_") as temp_dir:
@@ -75,6 +83,55 @@ def patched_analysis_root(repo_path: Path, patch: PatchSnapshot) -> Iterator[Pat
             text=True,
         )
         yield temp_repo if result.returncode == 0 else repo_path
+
+
+@contextmanager
+def patched_git_analysis_root(repo_path: Path, patch: PatchSnapshot) -> Iterator[Path]:
+    git_root_result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+    )
+    if git_root_result.returncode != 0:
+        yield repo_path
+        return
+
+    git_root = Path(git_root_result.stdout.strip()).resolve()
+    temp_root = Path(tempfile.mkdtemp(prefix="reposcale_patch_quality_", dir=git_root.parent))
+    shutil.rmtree(temp_root, ignore_errors=True)
+    try:
+        add_result = subprocess.run(
+            ["git", "worktree", "add", "--detach", "--quiet", str(temp_root), patch.base_ref],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        if add_result.returncode != 0:
+            yield repo_path
+            return
+
+        apply_result = subprocess.run(
+            ["git", "apply"],
+            cwd=temp_root,
+            input=patch.diff,
+            capture_output=True,
+            text=True,
+        )
+        if apply_result.returncode != 0:
+            yield repo_path
+            return
+
+        relative_repo_path = repo_path.resolve().relative_to(git_root)
+        yield temp_root / relative_repo_path
+    finally:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(temp_root)],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 def find_python_syntax_errors(repo_path: Path, patch: PatchSnapshot) -> list[str]:
@@ -190,6 +247,7 @@ def build_warnings(
     toml_errors: list[str],
     duplicate_imports: list[str],
     duplicate_decorators: list[str],
+    duplicate_assertions: list[str],
     repeated_added_lines: list[str],
     generated_files: list[str],
 ) -> list[str]:
@@ -198,6 +256,7 @@ def build_warnings(
     warnings.extend(f"toml syntax error: {error}" for error in toml_errors)
     warnings.extend(f"possible duplicate import: {line}" for line in duplicate_imports)
     warnings.extend(f"possible duplicate decorator: {line}" for line in duplicate_decorators)
+    warnings.extend(f"possible duplicate assertion: {line}" for line in duplicate_assertions)
     warnings.extend(f"repeated added line: {line}" for line in repeated_added_lines)
     warnings.extend(f"generated dependency file changed: {path}" for path in generated_files)
     return warnings

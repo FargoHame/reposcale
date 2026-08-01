@@ -125,9 +125,25 @@ def make_preflight_tool(task: TaskSpec):
         )
         report = analyze_patch_quality(run)
         status = quality_status(report)
-        if status == "clean":
+        if status != "clean":
+            return f"Preflight failed: quality_status={status}\n{render_patch_quality(report)}"
+        if task.semantic_check_command is None:
             return "Preflight passed: patch quality is clean."
-        return f"Preflight failed: quality_status={status}\n{render_patch_quality(report)}"
+
+        semantic_result = run_command(
+            task.semantic_check_command,
+            task.repo_path,
+            task.semantic_timeout_seconds or task.test_timeout_seconds,
+        )
+        if semantic_result.exit_code == 0 and not semantic_result.timed_out:
+            return "Preflight passed: patch quality and semantic check are clean."
+        evidence = summarize_validation(semantic_result)
+        return (
+            "Preflight failed: semantic check failed.\n"
+            f"{render_validation_evidence(evidence)}\n"
+            f"stdout:\n{semantic_result.stdout}\n"
+            f"stderr:\n{semantic_result.stderr}"
+        )
 
     return run_preflight
 

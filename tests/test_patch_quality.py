@@ -34,6 +34,19 @@ def test_find_duplicate_added_decorators_against_hunk_context() -> None:
     ]
 
 
+def test_find_duplicate_added_assertions_against_hunk_context() -> None:
+    diff = """diff --git a/test_app.py b/test_app.py
+@@ -10,3 +10,4 @@
+ def test_elapsed_time():
+     assert str(session.elapsed_time()) == "0:01:41"
++    assert str(session.elapsed_time()) == "0:01:41"
+"""
+
+    assert find_duplicate_added_lines(diff, ("assert ",)) == [
+        'assert str(session.elapsed_time()) == "0:01:41"'
+    ]
+
+
 def test_analyze_patch_quality_flags_syntax_errors_and_generated_files(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -139,6 +152,57 @@ def test_analyze_patch_quality_flags_repeated_added_lines(tmp_path: Path) -> Non
     assert report is not None
     assert report.repeated_added_lines == ["length += 1"]
     assert "repeated added line: length += 1" in report.warnings
+
+
+def test_analyze_patch_quality_replays_stored_patch_from_base_ref(tmp_path: Path) -> None:
+    import subprocess
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True)
+    (repo / "test_app.py").write_text(
+        "def test_elapsed_time():\n"
+        '    assert str(session.elapsed_time()) == "0:01:41"\n',
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "test_app.py"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True, capture_output=True)
+    base_ref = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    (repo / "test_app.py").write_text("def test_dirty_checkout():\n    assert True\n", encoding="utf-8")
+    run = make_run(
+        repo,
+        PatchSnapshot(
+            repo_path=repo,
+            is_git_repo=True,
+            base_ref=base_ref,
+            changed_files=["test_app.py"],
+            diff=(
+                "diff --git a/test_app.py b/test_app.py\n"
+                "index 357ec0d..f4968ee 100644\n"
+                "--- a/test_app.py\n"
+                "+++ b/test_app.py\n"
+                "@@ -1,2 +1,3 @@\n"
+                " def test_elapsed_time():\n"
+                '     assert str(session.elapsed_time()) == "0:01:41"\n'
+                '+    assert str(session.elapsed_time()) == "0:01:41"\n'
+            ),
+        ),
+    )
+
+    report = analyze_patch_quality(run)
+
+    assert report is not None
+    assert report.duplicate_assertions == [
+        'assert str(session.elapsed_time()) == "0:01:41"'
+    ]
 
 
 def make_run(repo_path: Path, patch: PatchSnapshot) -> RunArtifact:

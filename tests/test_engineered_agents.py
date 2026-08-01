@@ -297,6 +297,19 @@ def test_preflight_flags_invalid_toml_patch(tmp_path) -> None:
     assert "toml syntax error: pyproject.toml:" in result
 
 
+def test_preflight_runs_semantic_check_after_clean_patch(tmp_path) -> None:
+    (tmp_path / "value.txt").write_text("old\n", encoding="utf-8")
+    init_git_repo(tmp_path)
+    (tmp_path / "value.txt").write_text("new\n", encoding="utf-8")
+    task = make_task(tmp_path)
+    task.semantic_check_command = 'python -c "raise SystemExit(1)"'
+    run_preflight = make_preflight_tool(task)
+
+    result = run_preflight()
+
+    assert "Preflight failed: semantic check failed." in result
+
+
 def init_git_repo(path):
     subprocess.run(["git", "init"], cwd=path, capture_output=True, text=True, check=True)
     subprocess.run(["git", "add", "."], cwd=path, capture_output=True, text=True, check=True)

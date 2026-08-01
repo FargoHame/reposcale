@@ -14,3 +14,5 @@ problem_statement: |
   Reference issue: https://github.com/scanapi/scanapi/issues/957
 test_command: python ../../../scripts/check_scanapi_freezegun_migration.py
 test_timeout_seconds: 15
+semantic_check_command: python ../../../scripts/check_scanapi_freezegun_semantics.py
+semantic_timeout_seconds: 15

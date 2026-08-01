@@ -14,6 +14,8 @@ class TaskSpec(BaseModel):
     problem_statement: str = Field(min_length=1)
     test_command: str | None = None
     test_timeout_seconds: float = Field(default=30, gt=0)
+    semantic_check_command: str | None = None
+    semantic_timeout_seconds: float | None = Field(default=None, gt=0)
 
 
 class ModelConfig(BaseModel):
@@ -109,6 +111,7 @@ class PatchQualityReport(BaseModel):
     toml_errors: list[str] = Field(default_factory=list)
     duplicate_imports: list[str] = Field(default_factory=list)
     duplicate_decorators: list[str] = Field(default_factory=list)
+    duplicate_assertions: list[str] = Field(default_factory=list)
     repeated_added_lines: list[str] = Field(default_factory=list)
     generated_files: list[str] = Field(default_factory=list)
 
@@ -121,7 +124,9 @@ class EvaluationResult(BaseModel):
     status: Literal["passed", "failed", "not_evaluated"]
     evaluated_at: datetime
     test_command: CommandResult | None = None
+    semantic_command: CommandResult | None = None
     validation_evidence: ValidationEvidence | None = None
+    semantic_evidence: ValidationEvidence | None = None
     patch_quality: PatchQualityReport | None = None
     quality_status: Literal["clean", "warning", "risky"] = "clean"
     clean_pass: bool = False

@@ -30,6 +30,9 @@ RepoScale compares a simple baseline coding-agent harness against a more enginee
 | Evaluations must replay the stored patch, not trust the current checkout. | After restoring ScanAPI, re-evaluating the run initially validated the clean checkout. Eval now replays the stored diff in a temp copy, while patch quality parses the patched Python and TOML. | Run artifacts remain auditable after benchmark repos are cleaned for reuse. |
 | In-run preflight improves structural patch quality. | With `run_preflight`, ScanAPI reached `passed`, `quality=clean`, and `clean=True` in 28 model calls and 27 tool calls. | Giving the agent patch-quality feedback during the run can convert risky static passes into structurally clean passes. |
 | Structural preflight is still not semantic proof. | The new ScanAPI patch is syntactically clean, but it still looks suspicious because it imports `FakeDatetime` from `time_machine`; deeper import/test validation is needed. | The next benchmark layer should check importability or affected tests, not only syntax and string-based task checks. |
+| Semantic validation catches fake-clean migrations. | The latest ScanAPI run completed with a clean patch and passed the original migration checker, but failed semantic validation because `context["now"]` became a string instead of staying datetime-like. | Eval needs task-specific behavioral evidence, not only static markers or patch shape. |
+| Eval now replays patches from the recorded git base. | ScanAPI eval uses a temporary git worktree at the run's `base_ref` before applying the stored diff. | Re-evaluating old artifacts no longer depends on whether the benchmark checkout is currently dirty or restored. |
+| Clean pass remains stricter than pass. | The final ScanAPI semantic-preflight rerun passed both validation commands, but quality stayed `warning` because the patch duplicated an assertion. | The report can distinguish functional success from review-ready patch quality. |
 | Patch quality can improve with engineered context. | Tiny cache engineered changed 1 file and 1 line; baseline artifact showed noisier historical patch stats. | Harnesses can improve patch focus. |
 
 ## Latest Experiment Results
@@ -45,6 +48,8 @@ These reports can be reproduced locally after running the benchmark setup script
 | `scanapi-pytest-freezegun-migration` | engineered + search context | failed | failed | 110 | 110 | 0 | 73 | 69 | 56 | 25 | 0 | 0 | 2 | 4 | 206.69 |
 | `scanapi-pytest-freezegun-migration` | engineered + repeat-edit block | completed | passed | 24 | 23 | 0 | 0 | 2 | 2 | 8 | 0 | 0 | 2 | 3 | 80.47 |
 | `scanapi-pytest-freezegun-migration` | engineered + run preflight | completed | passed | 28 | 27 | 0 | 0 | 3 | 1 | 10 | 0 | 0 | 1 | 3 | 62.82 |
+| `scanapi-pytest-freezegun-migration` | engineered + semantic preflight | completed | failed | 36 | 35 | 0 | 0 | 1 | 2 | 14 | 0 | 0 | 1 | 3 | 216.17 |
+| `scanapi-pytest-freezegun-migration` | engineered + stricter semantic preflight | completed | passed | 40 | 39 | 0 | 4 | 2 | 1 | 16 | 1 | 1 | 1 | 3 | 174.35 |
 | `pyyaml-trailing-tab-plain-scalar` | baseline | failed | failed | 24 | 16 | 4 | 4 | 2 | 0 | 1 | 0 | 0 | 1 | 1 | 138.10 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + validation evidence | failed | failed | 30 | 30 | 0 | 8 | 2 | 16 | 2 | 0 | 0 | 1 | 1 | 85.75 |
 | `pyyaml-trailing-tab-plain-scalar` | engineered + search context/no-op feedback | failed | failed | 120 | 120 | 0 | 5 | 77 | 12 | 29 | 0 | 22 | 29 | 1 | 227.20 |
@@ -76,6 +81,6 @@ Run the test suite:
 uv run pytest
 ```
 
-## Next Milestone
+## Current Milestone
 
-Milestone 27 adds `run_preflight` as an engineered-agent tool. The ScanAPI rerun shows structural patch quality improves during the run, but the next gap is semantic validation such as import checks or affected-test execution.
+Milestone 28 adds task-level semantic validation, deterministic patch replay from the recorded git base, and duplicate-assertion patch-quality warnings. The ScanAPI reruns show the harness can reject a structurally clean but semantically wrong patch, then still avoid calling the next functional patch a clean pass when review hygiene is suspicious.
