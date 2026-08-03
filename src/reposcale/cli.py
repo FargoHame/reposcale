@@ -6,6 +6,7 @@ from typing import Annotated, TypeVar, cast
 
 import typer
 
+from reposcale.benchmark import run_benchmark_suite
 from reposcale.comparison import create_comparison_report
 from reposcale.evaluation import create_evaluation_artifact
 from reposcale.llm import LlmError, OpenRouterError
@@ -91,6 +92,29 @@ def report(
 ) -> None:
     """Render a human-readable report from run and eval artifacts."""
     typer.echo(as_cli_error(lambda: render_report(runs_dir, evals_dir, details=details, task_id=task, latest=latest)))
+
+
+@app.command()
+def benchmark(
+    suite: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Path to a benchmark suite YAML file.")],
+    runs_dir: Annotated[Path, typer.Option(help="Directory where run artifacts are written.")] = Path("runs"),
+    evals_dir: Annotated[Path, typer.Option(help="Directory where evaluation artifacts are written.")] = Path("evals"),
+    reports_dir: Annotated[Path, typer.Option(help="Directory where benchmark reports are written.")] = Path(
+        "reports"
+    ),
+    execute_agent: Annotated[bool, typer.Option(help="Actually execute agents instead of placeholder runs.")] = False,
+) -> None:
+    """Run a controlled benchmark suite and write JSON, CSV, and Markdown reports."""
+    output_path = as_cli_error(
+        lambda: run_benchmark_suite(
+            suite,
+            runs_dir=runs_dir,
+            evals_dir=evals_dir,
+            reports_dir=reports_dir,
+            execute_agent=execute_agent,
+        )
+    )
+    typer.echo(f"Wrote benchmark report: {output_path}")
 
 
 def as_cli_error(action: Callable[[], ReturnT]) -> ReturnT:

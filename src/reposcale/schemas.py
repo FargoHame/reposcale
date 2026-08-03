@@ -14,6 +14,7 @@ class TaskSpec(BaseModel):
     problem_statement: str = Field(min_length=1)
     test_command: str | None = None
     test_timeout_seconds: float = Field(default=30, gt=0)
+    validation_patch: Path | None = None
     semantic_check_command: str | None = None
     semantic_timeout_seconds: float | None = Field(default=None, gt=0)
 

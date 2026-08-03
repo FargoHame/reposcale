@@ -1,0 +1,134 @@
+suite_id: swebench-verified-20-v1
+harness_ref: reposcale-v1-harness-freeze
+agents:
+- baseline
+- engineered
+model:
+  provider: mistral
+  model: devstral-latest
+  temperature: 0
+  max_tokens: 2048
+budgets:
+  max_steps: 35
+  recursion_limit: 300
+tasks:
+- task_path: tasks/v1/mwaskom__seaborn-3069.yaml
+  repo_commit: upstream-54cab15bdacfaa05a88fbc5502a5b322d99f148e
+  source_base_commit: 54cab15bdacfaa05a88fbc5502a5b322d99f148e
+  source_issue: https://github.com/mwaskom/seaborn/issues/3069
+  difficulty: 15 min - 1 hour
+  domain: mwaskom/seaborn
+- task_path: tasks/v1/mwaskom__seaborn-3187.yaml
+  repo_commit: upstream-22cdfb0c93f8ec78492d87edb810f10cb7f57a31
+  source_base_commit: 22cdfb0c93f8ec78492d87edb810f10cb7f57a31
+  source_issue: https://github.com/mwaskom/seaborn/issues/3187
+  difficulty: 15 min - 1 hour
+  domain: mwaskom/seaborn
+- task_path: tasks/v1/pallets__flask-5014.yaml
+  repo_commit: upstream-7ee9ceb71e868944a46e1ff00b506772a53a4f1d
+  source_base_commit: 7ee9ceb71e868944a46e1ff00b506772a53a4f1d
+  source_issue: https://github.com/pallets/flask/issues/5014
+  difficulty: <15 min fix
+  domain: pallets/flask
+- task_path: tasks/v1/psf__requests-1142.yaml
+  repo_commit: upstream-22623bd8c265b78b161542663ee980738441c307
+  source_base_commit: 22623bd8c265b78b161542663ee980738441c307
+  source_issue: https://github.com/psf/requests/issues/1142
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-1724.yaml
+  repo_commit: upstream-1ba83c47ce7b177efe90d5f51f7760680f72eda0
+  source_base_commit: 1ba83c47ce7b177efe90d5f51f7760680f72eda0
+  source_issue: https://github.com/psf/requests/issues/1724
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-1766.yaml
+  repo_commit: upstream-847735553aeda6e6633f2b32e14ba14ba86887a4
+  source_base_commit: 847735553aeda6e6633f2b32e14ba14ba86887a4
+  source_issue: https://github.com/psf/requests/issues/1766
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-1921.yaml
+  repo_commit: upstream-3c88e520da24ae6f736929a750876e7654accc3d
+  source_base_commit: 3c88e520da24ae6f736929a750876e7654accc3d
+  source_issue: https://github.com/psf/requests/issues/1921
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-2317.yaml
+  repo_commit: upstream-091991be0da19de9108dbe5e3752917fea3d7fdc
+  source_base_commit: 091991be0da19de9108dbe5e3752917fea3d7fdc
+  source_issue: https://github.com/psf/requests/issues/2317
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-2931.yaml
+  repo_commit: upstream-5f7a3a74aab1625c2bb65f643197ee885e3da576
+  source_base_commit: 5f7a3a74aab1625c2bb65f643197ee885e3da576
+  source_issue: https://github.com/psf/requests/issues/2931
+  difficulty: 15 min - 1 hour
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-5414.yaml
+  repo_commit: upstream-39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e
+  source_base_commit: 39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e
+  source_issue: https://github.com/psf/requests/issues/5414
+  difficulty: <15 min fix
+  domain: psf/requests
+- task_path: tasks/v1/psf__requests-6028.yaml
+  repo_commit: upstream-0192aac24123735b3eaf9b08df46429bb770c283
+  source_base_commit: 0192aac24123735b3eaf9b08df46429bb770c283
+  source_issue: https://github.com/psf/requests/issues/6028
+  difficulty: 15 min - 1 hour
+  domain: psf/requests
+- task_path: tasks/v1/pydata__xarray-2905.yaml
+  repo_commit: upstream-7c4e2ac83f7b4306296ff9b7b51aaf016e5ad614
+  source_base_commit: 7c4e2ac83f7b4306296ff9b7b51aaf016e5ad614
+  source_issue: https://github.com/pydata/xarray/issues/2905
+  difficulty: 15 min - 1 hour
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-3095.yaml
+  repo_commit: upstream-1757dffac2fa493d7b9a074b84cf8c830a706688
+  source_base_commit: 1757dffac2fa493d7b9a074b84cf8c830a706688
+  source_issue: https://github.com/pydata/xarray/issues/3095
+  difficulty: 15 min - 1 hour
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4075.yaml
+  repo_commit: upstream-19b088636eb7d3f65ab7a1046ac672e0689371d8
+  source_base_commit: 19b088636eb7d3f65ab7a1046ac672e0689371d8
+  source_issue: https://github.com/pydata/xarray/issues/4075
+  difficulty: <15 min fix
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4094.yaml
+  repo_commit: upstream-a64cf2d5476e7bbda099b34c40b7be1880dbd39a
+  source_base_commit: a64cf2d5476e7bbda099b34c40b7be1880dbd39a
+  source_issue: https://github.com/pydata/xarray/issues/4094
+  difficulty: <15 min fix
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4356.yaml
+  repo_commit: upstream-e05fddea852d08fc0845f954b79deb9e9f9ff883
+  source_base_commit: e05fddea852d08fc0845f954b79deb9e9f9ff883
+  source_issue: https://github.com/pydata/xarray/issues/4356
+  difficulty: <15 min fix
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4629.yaml
+  repo_commit: upstream-a41edc7bf5302f2ea327943c0c48c532b12009bc
+  source_base_commit: a41edc7bf5302f2ea327943c0c48c532b12009bc
+  source_issue: https://github.com/pydata/xarray/issues/4629
+  difficulty: <15 min fix
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-6461.yaml
+  repo_commit: upstream-851dadeb0338403e5021c3fbe80cbc9127ee672d
+  source_base_commit: 851dadeb0338403e5021c3fbe80cbc9127ee672d
+  source_issue: https://github.com/pydata/xarray/issues/6461
+  difficulty: <15 min fix
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4687.yaml
+  repo_commit: upstream-d3b6aa6d8b997df115a53c001d00222a0f92f63a
+  source_base_commit: d3b6aa6d8b997df115a53c001d00222a0f92f63a
+  source_issue: https://github.com/pydata/xarray/issues/4687
+  difficulty: 15 min - 1 hour
+  domain: pydata/xarray
+- task_path: tasks/v1/pydata__xarray-4695.yaml
+  repo_commit: upstream-51ef2a66c4e0896eab7d2b03e3dfb3963e338e3c
+  source_base_commit: 51ef2a66c4e0896eab7d2b03e3dfb3963e338e3c
+  source_issue: https://github.com/pydata/xarray/issues/4695
+  difficulty: 15 min - 1 hour
+  domain: pydata/xarray

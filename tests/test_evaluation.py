@@ -140,11 +140,57 @@ def test_create_evaluation_fails_when_semantic_check_fails(tmp_path: Path) -> No
     assert "Semantic check failed" in payload
 
 
+def test_run_test_command_applies_validation_patch_in_isolated_repo(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "app.py").write_text("def value():\n    return 'broken'\n", encoding="utf-8")
+    validation_patch = tmp_path / "validation.patch"
+    validation_patch.write_text(
+        "diff --git a/hidden_test.py b/hidden_test.py\n"
+        "new file mode 100644\n"
+        "index 0000000..4064997\n"
+        "--- /dev/null\n"
+        "+++ b/hidden_test.py\n"
+        "@@ -0,0 +1,3 @@\n"
+        "+from app import value\n"
+        "+\n"
+        "+assert value() == 'fixed'\n",
+        encoding="utf-8",
+    )
+    run = make_run(
+        repo,
+        test_command="python hidden_test.py",
+        patch=PatchSnapshot(
+            repo_path=repo,
+            is_git_repo=False,
+            changed_files=["app.py"],
+            diff=(
+                "diff --git a/app.py b/app.py\n"
+                "--- a/app.py\n"
+                "+++ b/app.py\n"
+                "@@ -1,2 +1,2 @@\n"
+                " def value():\n"
+                "-    return 'broken'\n"
+                "+    return 'fixed'\n"
+            ),
+        ),
+        validation_patch=validation_patch,
+    )
+
+    result = run_test_command(run)
+
+    assert result is not None
+    assert result.exit_code == 0
+    assert not (repo / "hidden_test.py").exists()
+    assert (repo / "app.py").read_text(encoding="utf-8") == "def value():\n    return 'broken'\n"
+
+
 def make_run(
     repo_path: Path,
     test_command: str,
     patch: PatchSnapshot,
     semantic_check_command: str | None = None,
+    validation_patch: Path | None = None,
 ) -> RunArtifact:
     now = datetime.now(timezone.utc)
     return RunArtifact(
@@ -155,6 +201,7 @@ def make_run(
             repo_path=repo_path,
             problem_statement="Fix it.",
             test_command=test_command,
+            validation_patch=validation_patch,
             semantic_check_command=semantic_check_command,
         ),
         agent="engineered",

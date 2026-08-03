@@ -81,6 +81,28 @@ Run the test suite:
 uv run pytest
 ```
 
+## RepoScale V1 Benchmark
+
+V1 freezes the current baseline and engineered harnesses at `reposcale-v1-harness-freeze` and prepares a 20-task SWE-bench Verified suite with pinned source snapshots and hidden validation patches.
+
+Prepare the local benchmark repos and generated task specs:
+
+```powershell
+uv run python scripts\prepare_swebench_verified.py
+```
+
+Validate the suite orchestration without spending model calls:
+
+```powershell
+uv run reposcale benchmark --suite benchmarks\v1\swebench_verified_20_suite.yaml --runs-dir runs\v1-placeholder --evals-dir evals\v1-placeholder --reports-dir reports\v1-placeholder
+```
+
+Run the actual controlled agent benchmark:
+
+```powershell
+uv run reposcale benchmark --suite benchmarks\v1\swebench_verified_20_suite.yaml --runs-dir runs\v1 --evals-dir evals\v1 --reports-dir reports\v1 --execute-agent
+```
+
 ## Current Milestone
 
 Milestone 28 adds task-level semantic validation, deterministic patch replay from the recorded git base, and duplicate-assertion patch-quality warnings. The ScanAPI reruns show the harness can reject a structurally clean but semantically wrong patch, then still avoid calling the next functional patch a clean pass when review hygiene is suspicious.

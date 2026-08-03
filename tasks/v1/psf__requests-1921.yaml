@@ -1,0 +1,51 @@
+task_id: psf__requests-1921
+title: SWE-bench Verified psf__requests-1921
+repo_path: benchmarks/external/swebench/psf__requests-1921
+problem_statement: 'Removing a default header of a session
+
+  [The docs](http://docs.python-requests.org/en/latest/user/advanced/#session-objects)
+  say that you can prevent sending a session header by setting the headers value to
+  None in the method''s arguments. You would expect (as [discussed on IRC](https://botbot.me/freenode/python-requests/msg/10788170/))
+  that this would work for session''s default headers, too:
+
+
+  ``` python
+
+  session = requests.Session()
+
+  # Do not send Accept-Encoding
+
+  session.headers[''Accept-Encoding''] = None
+
+  ```
+
+
+  What happens is that "None"  gets sent as the value of header.
+
+
+  ```
+
+  Accept-Encoding: None
+
+  ```
+
+
+  For the reference, here is a way that works:
+
+
+  ``` python
+
+  del session.headers[''Accept-Encoding'']
+
+  ```
+
+
+  '
+test_command: python -m pytest "test_requests.py::RequestsTestCase::test_DIGESTAUTH_WRONG_HTTP_401_GET"
+  "test_requests.py::RequestsTestCase::test_POSTBIN_GET_POST_FILES" "test_requests.py::RequestsTestCase::test_basicauth_with_netrc"
+  "test_requests.py::RequestsTestCase::test_cookie_persists_via_api" "test_requests.py::RequestsTestCase::test_headers_on_session_with_None_are_not_sent"
+  "test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect" "test_requests.py::RequestsTestCase::test_DIGESTAUTH_QUOTES_QOP_VALUE"
+  "test_requests.py::RequestsTestCase::test_DIGEST_AUTH_RETURNS_COOKIE" "test_requests.py::RequestsTestCase::test_DIGEST_STREAM"
+  "test_requests.py::RequestsTestCase::test_HTTP_200_OK_GET_WITH_MIXED_PARAMS" "test_requests.py::RequestsTestCase::test_HTTP_200_OK_GET_WITH_PARAMS"
+test_timeout_seconds: 120
+validation_patch: benchmarks/v1/validation_patches/psf__requests-1921.patch

@@ -1,0 +1,12 @@
+task_id: psf__requests-2931
+title: SWE-bench Verified psf__requests-2931
+repo_path: benchmarks/external/swebench/psf__requests-2931
+problem_statement: "Request with binary payload fails due to calling to_native_string\n\
+  Introduced with https://github.com/kennethreitz/requests/issues/2844\n\n```\nimport\
+  \ requests\nrequests.put(\"http://httpbin.org/put\", data=u\"\xF6\xF6\xF6\".encode(\"\
+  utf-8\"))\n```\n\nThis works with 2.8.1, but not with 2.9.\n\n"
+test_command: python -m pytest "test_requests.py::TestRequests::test_binary_put" "test_requests.py::TestRequests::test_entry_points"
+  "test_requests.py::TestRequests::test_invalid_url" "test_requests.py::TestRequests::test_basic_building"
+  "test_requests.py::TestRequests::test_path_is_not_double_encoded" "test_requests.py::TestRequests::test_params_are_added_before_fragment"
+test_timeout_seconds: 120
+validation_patch: benchmarks/v1/validation_patches/psf__requests-2931.patch

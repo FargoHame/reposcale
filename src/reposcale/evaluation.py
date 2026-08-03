@@ -94,17 +94,18 @@ def run_patched_command(run: RunArtifact, command: str, timeout_seconds: float) 
 @contextmanager
 def patched_validation_repo(run: RunArtifact) -> Iterator[Path]:
     patch = run.patch
-    if patch is None or not patch.diff.strip():
+    validation_patch = run.task.validation_patch
+    if (patch is None or not patch.diff.strip()) and validation_patch is None:
         yield run.task.repo_path
         return
 
     repo_path = run.task.repo_path
-    if patch.is_git_repo and patch.base_ref:
-        with patched_git_worktree(repo_path, patch.base_ref, patch.diff) as validation_path:
+    if patch and patch.is_git_repo and patch.base_ref:
+        with patched_git_worktree(run, patch.base_ref) as validation_path:
             yield validation_path
         return
 
-    if patch_is_already_applied(repo_path, patch.diff):
+    if patch and patch.diff.strip() and validation_patch is None and patch_is_already_applied(repo_path, patch.diff):
         yield repo_path
         return
 
@@ -116,24 +117,17 @@ def patched_validation_repo(run: RunArtifact) -> Iterator[Path]:
             dirs_exist_ok=True,
             ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".pytest_cache"),
         )
-        result = subprocess.run(
-            ["git", "apply"],
-            cwd=temp_root,
-            input=patch.diff,
-            capture_output=True,
-            text=True,
-            env=git_apply_env(temp_root),
-        )
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout).strip()
-            raise PatchApplyError(f"stored patch did not apply cleanly for validation: {detail}")
+        if patch and patch.diff.strip():
+            apply_diff(temp_root, patch.diff, "stored patch")
+        apply_validation_patch(temp_root, validation_patch)
         yield temp_root
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
 @contextmanager
-def patched_git_worktree(repo_path: Path, base_ref: str, diff: str) -> Iterator[Path]:
+def patched_git_worktree(run: RunArtifact, base_ref: str) -> Iterator[Path]:
+    repo_path = run.task.repo_path
     git_root_result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=repo_path,
@@ -157,17 +151,9 @@ def patched_git_worktree(repo_path: Path, base_ref: str, diff: str) -> Iterator[
             detail = (add_result.stderr or add_result.stdout).strip()
             raise PatchApplyError(f"could not create validation worktree at {base_ref}: {detail}")
 
-        apply_result = subprocess.run(
-            ["git", "apply"],
-            cwd=temp_root,
-            input=diff,
-            capture_output=True,
-            text=True,
-            env=git_apply_env(temp_root),
-        )
-        if apply_result.returncode != 0:
-            detail = (apply_result.stderr or apply_result.stdout).strip()
-            raise PatchApplyError(f"stored patch did not apply cleanly for validation: {detail}")
+        if run.patch and run.patch.diff.strip():
+            apply_diff(temp_root, run.patch.diff, "stored patch")
+        apply_validation_patch(temp_root, run.task.validation_patch)
 
         relative_repo_path = repo_path.resolve().relative_to(git_root)
         validation_path = temp_root / relative_repo_path
@@ -180,6 +166,29 @@ def patched_git_worktree(repo_path: Path, base_ref: str, diff: str) -> Iterator[
             text=True,
         )
         shutil.rmtree(temp_root, ignore_errors=True)
+
+
+def apply_validation_patch(repo_path: Path, validation_patch: Path | None) -> None:
+    if validation_patch is None:
+        return
+    patch_path = validation_patch.resolve()
+    if not patch_path.exists() or not patch_path.is_file():
+        raise PatchApplyError(f"validation patch does not exist: {validation_patch}")
+    apply_diff(repo_path, patch_path.read_text(encoding="utf-8"), "validation patch")
+
+
+def apply_diff(repo_path: Path, diff: str, label: str) -> None:
+    result = subprocess.run(
+        ["git", "apply"],
+        cwd=repo_path,
+        input=diff,
+        capture_output=True,
+        text=True,
+        env=git_apply_env(repo_path),
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise PatchApplyError(f"{label} did not apply cleanly for validation: {detail}")
 
 
 def patch_is_already_applied(repo_path: Path, diff: str) -> bool:

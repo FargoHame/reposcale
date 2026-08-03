@@ -1,0 +1,12 @@
+task_id: pallets__flask-5014
+title: SWE-bench Verified pallets__flask-5014
+repo_path: benchmarks/external/swebench/pallets__flask-5014
+problem_statement: "Require a non-empty name for Blueprints\nThings do not work correctly\
+  \ if a Blueprint is given an empty name (e.g. #4944).\r\nIt would be helpful if\
+  \ a `ValueError` was raised when trying to do that.\n"
+test_command: python -m pytest "tests/test_blueprints.py::test_empty_name_not_allowed"
+  "tests/test_blueprints.py::test_blueprint_specific_error_handling" "tests/test_blueprints.py::test_blueprint_specific_user_error_handling"
+  "tests/test_blueprints.py::test_blueprint_app_error_handling" "tests/test_blueprints.py::test_blueprint_prefix_slash[-/-/]"
+  "tests/test_blueprints.py::test_blueprint_prefix_slash[/--/]"
+test_timeout_seconds: 120
+validation_patch: benchmarks/v1/validation_patches/pallets__flask-5014.patch
